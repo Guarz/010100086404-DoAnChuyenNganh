@@ -5,7 +5,7 @@ const { getAllHotels, getHotelById } = require('../controllers/hotelController')
 
 // Route: GET /api/hotels
 router.get('/', getAllHotels);
-
+router.get('/search', searchHotels);
 // Route: GET /api/hotels/:id
 router.get('/:id', getHotelById);
 
