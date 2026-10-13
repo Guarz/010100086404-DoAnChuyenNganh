@@ -13,4 +13,4 @@ const roomTypeSchema = new mongoose.Schema({
   images: [{ type: String }] // Thêm mới
 }, { timestamps: true });
 
-module.exports = mongoose.model('RoomType', roomTypeSchema);
+module.exports = mongoose.model('RoomType', roomTypeSchema, 'roomtypes');

@@ -1,7 +1,7 @@
 // File: routes/hotelRoutes.js
 const express = require('express');
 const router = express.Router();
-const { getAllHotels, getHotelById } = require('../controllers/hotelController');
+const { getAllHotels, getHotelById, searchHotels } = require('../controllers/hotelController');
 
 // Route: GET /api/hotels
 router.get('/', getAllHotels);
