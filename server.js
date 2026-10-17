@@ -7,6 +7,7 @@ const bookingRoutes = require('./Hotel-RAG-BE/routes/bookingRoutes');
 const adminRoutes = require('./Hotel-RAG-BE/routes/adminRoutes');
 const partnerRoutes = require('./Hotel-RAG-BE/routes/partnerRoutes');
 const aiRoutes = require('./Hotel-RAG-BE/routes/aiRoutes'); // Import route AI
+const authRoutes = require('./Hotel-RAG-BE/routes/authRoutes'); // Import route Auth
 
 // Khởi tạo app
 dotenv.config();
@@ -32,6 +33,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/partner', partnerRoutes);
 
 app.use('/api/ai', aiRoutes);
+
+app.use('/api/auth', authRoutes); // Sử dụng route Auth
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

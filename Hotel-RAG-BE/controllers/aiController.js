@@ -1,3 +1,4 @@
+// File: controllers/aiController.js
 const Hotel = require('../models/Hotel');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -7,7 +8,9 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 exports.searchHotelsWithAI = async (req, res) => {
   try {
     const { query } = req.body;
-    if (!query) {
+    
+    // Đảm bảo Frontend React truyền đúng biến 'query' và là dạng chuỗi
+    if (!query || typeof query !== 'string' || query.trim() === '') {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập câu hỏi tìm kiếm' });
     }
 
@@ -19,10 +22,10 @@ exports.searchHotelsWithAI = async (req, res) => {
     
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // BƯỚC 1: Dịch câu hỏi thành Vector (Dùng chung model với aiService)
+    // BƯỚC 1: Dịch câu hỏi thành Vector
     console.log("Đang dịch câu hỏi thành Vector...");
     const embedModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
-    const embedResult = await embedModel.embedContent(query);
+    const embedResult = await embedModel.embedContent(query.trim()); // Trim() để lọc khoảng trắng dư từ React
     const queryVector = embedResult.embedding.values;
 
     // BƯỚC 2: Tìm kiếm dưới Database
@@ -46,7 +49,7 @@ exports.searchHotelsWithAI = async (req, res) => {
       return res.json({ success: true, answer: "Xin lỗi, hiện không có khách sạn nào phù hợp với yêu cầu của bạn.", data: [] });
     }
 
-    // BƯỚC 3: Nhờ AI viết tư vấn (Dùng model viết văn)
+    // BƯỚC 3: Nhờ AI viết tư vấn
     console.log("Đang nhờ AI sinh câu trả lời...");
     const prompt = `
       Bạn là nhân viên tư vấn OTA (đặt phòng). Khách hàng vừa hỏi: "${query}".
@@ -56,7 +59,6 @@ exports.searchHotelsWithAI = async (req, res) => {
       Nhiệm vụ: Dựa vào thông tin trên, hãy viết một đoạn tư vấn ngắn gọn, thân thiện (khoảng 3-4 câu) bằng tiếng Việt để giới thiệu các khách sạn này cho khách.
     `;
 
-    // BẮT BUỘC: Sử dụng gemini-pro để sinh văn bản (Hỗ trợ 100%)
     const chatModel = genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
     const chatResult = await chatModel.generateContent(prompt);
 
