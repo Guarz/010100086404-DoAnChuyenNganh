@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "cors": "^2.8.6",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
@@ -12,5 +13,5 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
-}
+  }
 }
