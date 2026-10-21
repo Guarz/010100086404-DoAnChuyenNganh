@@ -2,10 +2,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Icon from "../components/Icon"; // Chỉnh đường dẫn nếu cần
+import API from "../services/api";
 
 export default function ProfilePage({ onLogout }) {
   const [active, setActive] = useState("personal");
   const [saved, setSaved] = useState(false);
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingsError, setBookingsError] = useState("");
   const navigate = useNavigate();
 
   // 1. Lấy thông tin user từ LocalStorage
@@ -16,6 +20,32 @@ export default function ProfilePage({ onLogout }) {
   useEffect(() => {
     if (!currentUser) navigate("/login");
   }, [currentUser, navigate]);
+
+  useEffect(() => {
+    if (active !== "booking") return undefined;
+
+    let isCurrent = true;
+
+    API.get("/bookings/mine")
+      .then((response) => {
+        if (isCurrent) setBookings(response.data.data);
+      })
+      .catch((error) => {
+        if (isCurrent) {
+          setBookingsError(
+            error.response?.data?.message ||
+              "Không thể tải lịch sử đặt chỗ. Vui lòng thử lại.",
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setBookingsLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [active]);
 
   // State lưu dữ liệu form sửa đổi
   const [formData, setFormData] = useState({
@@ -78,7 +108,14 @@ export default function ProfilePage({ onLogout }) {
               {navItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => { setActive(item.id); setSaved(false); }}
+                  onClick={() => {
+                    if (item.id === "booking" && active !== "booking") {
+                      setBookingsLoading(true);
+                      setBookingsError("");
+                    }
+                    setActive(item.id);
+                    setSaved(false);
+                  }}
                   className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
                     active === item.id ? "bg-[#e8f2ed] text-[#173b31]" : "text-slate-600 hover:bg-slate-50"
                   }`}
@@ -124,7 +161,92 @@ export default function ProfilePage({ onLogout }) {
                 </div>
               </>
             )}
-            {/* Các tab khác giữ nguyên giao diện cũ... */}
+            {active === "booking" && (
+              <section>
+                <div className="border-b border-slate-100 pb-6">
+                  <h2 className="text-xl font-bold text-slate-900">Lịch sử đặt chỗ</h2>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Các đơn đặt phòng của tài khoản bạn.
+                  </p>
+                </div>
+
+                {bookingsLoading ? (
+                  <p className="py-8 text-sm text-slate-500">Đang tải lịch sử đặt chỗ...</p>
+                ) : bookingsError ? (
+                  <p role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                    {bookingsError}
+                  </p>
+                ) : bookings.length === 0 ? (
+                  <p className="py-8 text-sm text-slate-500">
+                    Bạn chưa có đơn đặt phòng nào.
+                  </p>
+                ) : (
+                  <div className="mt-6 space-y-4">
+                    {bookings.map((booking) => (
+                      <article
+                        key={booking._id}
+                        className="rounded-2xl border border-slate-200 p-5"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-bold text-[#173b31]">
+                              {booking.hotelId?.hotelName || "Khách sạn"}
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {[
+                                booking.hotelId?.address?.city,
+                                booking.hotelId?.address?.province,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
+                            {{
+                              Pending: "Chờ xác nhận",
+                              Confirmed: "Đã xác nhận",
+                              Canceled: "Đã hủy",
+                              Completed: "Hoàn tất",
+                            }[booking.bookingStatus] || booking.bookingStatus}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                          <p>
+                            Nhận phòng:{" "}
+                            <strong>
+                              {new Date(booking.checkInDate).toLocaleDateString("vi-VN")}
+                            </strong>
+                          </p>
+                          <p>
+                            Trả phòng:{" "}
+                            <strong>
+                              {new Date(booking.checkOutDate).toLocaleDateString("vi-VN")}
+                            </strong>
+                          </p>
+                        </div>
+
+                        <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
+                          {booking.bookingDetails.map((detail) => (
+                            <p
+                              key={detail._id || detail.roomTypeId?._id}
+                              className="text-sm text-slate-600"
+                            >
+                              {detail.roomTypeId?.title || "Loại phòng"} ·{" "}
+                              {detail.quantity} phòng · {detail.totalNights} đêm
+                            </p>
+                          ))}
+                        </div>
+
+                        <p className="mt-4 text-right font-bold text-[#173b31]">
+                          Tổng tiền: {booking.totalAmount.toLocaleString("vi-VN")}₫
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
           </section>
         </div>
       </div>

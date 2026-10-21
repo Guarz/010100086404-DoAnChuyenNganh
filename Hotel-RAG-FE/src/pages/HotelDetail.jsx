@@ -8,29 +8,80 @@ const photos = {
   hero: "https://images.unsplash.com/photo-1615722440048-da4ccf6de048?auto=format&fit=crop&w=1800&q=88",
 };
 
+const toDateInputValue = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export default function HotelDetail() {
   const navigate = useNavigate();
   const { id } = useParams(); // LẤY ID TỪ URL
   const [rooms, setRooms] = useState([]); // STATE LƯU HẠNG PHÒNG
   const [hotel, setHotel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [bookingRoomId, setBookingRoomId] = useState("");
+  const [checkInDate, setCheckInDate] = useState(() =>
+    toDateInputValue(new Date()),
+  );
+  const [checkOutDate, setCheckOutDate] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return toDateInputValue(tomorrow);
+  });
+  const [roomQuantity, setRoomQuantity] = useState(1);
+  const [specialRequests, setSpecialRequests] = useState("");
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+  const [bookingSuccess, setBookingSuccess] = useState("");
 
-  // GỌI API KHI MỞ TRANG
-  useEffect(() => {
-    const fetchHotelDetail = async () => {
-      try {
-        const response = await API.get(`/hotels/${id}`);
-        if (response.data.success) {
-          setHotel(response.data.data);
-        }
-      } catch (error) {
-        console.error("Lỗi lấy chi tiết khách sạn:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchHotelDetail();
-  }, [id]);
+  const handleBooking = async (event) => {
+    event.preventDefault();
+    setBookingError("");
+    setBookingSuccess("");
+
+    const token = localStorage.getItem("nestly_token");
+    if (!token) {
+      setBookingError("Vui lòng đăng nhập để tiếp tục đặt phòng.");
+      return;
+    }
+
+    if (new Date(checkOutDate) <= new Date(checkInDate)) {
+      setBookingError("Ngày trả phòng phải sau ngày nhận phòng.");
+      return;
+    }
+
+    const selectedRoom = rooms.find((room) => room._id === bookingRoomId);
+    if (!selectedRoom) {
+      setBookingError("Vui lòng chọn loại phòng muốn đặt.");
+      return;
+    }
+
+    setBookingLoading(true);
+    try {
+      const response = await API.post("/bookings", {
+        hotelId: hotel._id,
+        checkInDate,
+        checkOutDate,
+        bookingDetails: [
+          { roomTypeId: selectedRoom._id, quantity: Number(roomQuantity) },
+        ],
+        specialRequests,
+      });
+
+      setBookingSuccess(response.data.message || "Đặt phòng thành công!");
+      setBookingRoomId("");
+      setSpecialRequests("");
+    } catch (error) {
+      setBookingError(
+        error.response?.data?.message ||
+          "Không thể đặt phòng lúc này. Vui lòng thử lại.",
+      );
+    } finally {
+      setBookingLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -215,12 +266,16 @@ export default function HotelDetail() {
             </div>
           </div>
 
-          {/* Card Đặt phòng (Sau này sẽ nối API RoomType) */}
-          {/* CARD CHỌN PHÒNG */}
           <div className="flex flex-col gap-6">
             <h2 className="font-display text-2xl font-semibold text-[#173b31]">
               Chọn phòng của bạn
             </h2>
+
+            {bookingSuccess && (
+              <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+                {bookingSuccess}
+              </p>
+            )}
 
             {rooms.length === 0 ? (
               <p className="text-stone-500 italic">
@@ -290,18 +345,95 @@ export default function HotelDetail() {
                           </p>
                         </div>
                         <button
+                          type="button"
                           onClick={() => {
-                            alert(
-                              `Chức năng Đặt phòng ${room.title} đang được phát triển!`,
-                            );
+                            setBookingRoomId(room._id);
+                            setBookingError("");
+                            setBookingSuccess("");
                           }}
                           className="rounded-xl bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b]"
                         >
-                          Chọn phòng này
+                          {bookingRoomId === room._id
+                            ? "Đang chọn"
+                            : "Đặt phòng"}
                         </button>
                       </div>
                     </div>
                   </div>
+
+                  {bookingRoomId === room._id && (
+                    <form
+                      onSubmit={handleBooking}
+                      className="mt-6 grid gap-4 border-t border-stone-100 pt-6 sm:grid-cols-2"
+                    >
+                      <label className="text-sm font-semibold text-stone-700">
+                        Ngày nhận phòng
+                        <input
+                          type="date"
+                          required
+                          min={toDateInputValue(new Date())}
+                          value={checkInDate}
+                          onChange={(event) =>
+                            setCheckInDate(event.target.value)
+                          }
+                          className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                        />
+                      </label>
+                      <label className="text-sm font-semibold text-stone-700">
+                        Ngày trả phòng
+                        <input
+                          type="date"
+                          required
+                          min={checkInDate}
+                          value={checkOutDate}
+                          onChange={(event) =>
+                            setCheckOutDate(event.target.value)
+                          }
+                          className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                        />
+                      </label>
+                      <label className="text-sm font-semibold text-stone-700">
+                        Số phòng
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          step="1"
+                          value={roomQuantity}
+                          onChange={(event) =>
+                            setRoomQuantity(event.target.value)
+                          }
+                          className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                        />
+                      </label>
+                      <label className="text-sm font-semibold text-stone-700 sm:col-span-2">
+                        Yêu cầu đặc biệt (không bắt buộc)
+                        <textarea
+                          value={specialRequests}
+                          onChange={(event) =>
+                            setSpecialRequests(event.target.value)
+                          }
+                          rows="3"
+                          maxLength="500"
+                          className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                        />
+                      </label>
+                      {bookingError && (
+                        <p className="text-sm font-semibold text-red-600 sm:col-span-2">
+                          {bookingError}
+                        </p>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={bookingLoading}
+                        className="rounded-xl bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
+                      >
+                        {bookingLoading
+                          ? "Đang gửi yêu cầu..."
+                          : "Xác nhận đặt phòng"}
+                      </button>
+                    </form>
+                  )}
                 </aside>
               ))
             )}

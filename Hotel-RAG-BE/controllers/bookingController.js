@@ -4,11 +4,29 @@ const RoomInventory = require('../models/RoomInventory');
 const RoomType = require('../models/RoomType');
 const mongoose = require('mongoose');
 
+const parseDateOnly = (value) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+};
+
 // [POST] /api/bookings
 exports.createBooking = async (req, res) => {
   try {
     const { 
-      customerId, 
       hotelId, 
       checkInDate, 
       checkOutDate, 
@@ -16,9 +34,20 @@ exports.createBooking = async (req, res) => {
       specialRequests 
     } = req.body;
 
-    const checkIn = new Date(checkInDate);
-    const checkOut = new Date(checkOutDate);
-    const totalNights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+    if (!Array.isArray(bookingDetails) || bookingDetails.length === 0) {
+      return res.status(400).json({ success: false, message: 'Vui lòng chọn ít nhất một loại phòng' });
+    }
+
+    const checkIn = parseDateOnly(checkInDate);
+    const checkOut = parseDateOnly(checkOutDate);
+
+    if (!checkIn || !checkOut) {
+      return res.status(400).json({ success: false, message: 'Ngày nhận phòng hoặc trả phòng không hợp lệ' });
+    }
+
+    const checkInUtc = Date.UTC(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+    const checkOutUtc = Date.UTC(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
+    const totalNights = (checkOutUtc - checkInUtc) / (1000 * 60 * 60 * 24);
 
     if (totalNights <= 0) {
       return res.status(400).json({ success: false, message: 'Ngày Check-out phải sau ngày Check-in' });
@@ -30,10 +59,16 @@ exports.createBooking = async (req, res) => {
     // 1. KIỂM TRA & TRỪ QUỸ PHÒNG (Cho từng loại phòng khách đặt)
     for (const item of bookingDetails) {
       const { roomTypeId, quantity } = item;
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        return res.status(400).json({ success: false, message: 'Số lượng phòng phải là số nguyên lớn hơn 0' });
+      }
 
       // Tìm xem phòng này có tồn tại không
       const roomType = await RoomType.findById(roomTypeId);
       if (!roomType) throw new Error(`Không tìm thấy loại phòng: ${roomTypeId}`);
+      if (roomType.hotelId.toString() !== hotelId) {
+        return res.status(400).json({ success: false, message: 'Loại phòng không thuộc khách sạn đã chọn' });
+      }
 
       // Tìm các ngày khách muốn ở trong Inventory
       const inventories = await RoomInventory.find({
@@ -80,7 +115,7 @@ exports.createBooking = async (req, res) => {
 
     // 2. TẠO ĐƠN BOOKING
     const newBooking = new Booking({
-      customerId,
+      customerId: req.user.id,
       hotelId,
       checkInDate: checkIn,
       checkOutDate: checkOut,
@@ -101,5 +136,19 @@ exports.createBooking = async (req, res) => {
   } catch (error) {
     console.error("Lỗi Đặt phòng:", error.message);
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+exports.getMyBookings = async (req, res) => {
+  try {
+    const bookings = await Booking.find({ customerId: req.user.id })
+      .sort({ createdAt: -1 })
+      .populate('hotelId', 'hotelName address')
+      .populate('bookingDetails.roomTypeId', 'title');
+
+    return res.status(200).json({ success: true, data: bookings });
+  } catch (error) {
+    console.error('Lỗi lấy lịch sử đặt phòng:', error);
+    return res.status(500).json({ success: false, message: 'Không thể tải lịch sử đặt phòng lúc này' });
   }
 };
