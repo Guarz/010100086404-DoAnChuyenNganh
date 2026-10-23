@@ -71,7 +71,7 @@ export default function Header({ loggedIn, onLogout }) {
                     <button onClick={() => handleNavigate("/profile")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="users" size={18} /> Thông tin cá nhân</button>
                   </div>
                   <div className="p-2">
-                    <button onClick={() => handleNavigate("/partner-apply")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="home" size={18} /> Trở thành đối tác</button>
+                    <button onClick={() => handleNavigate("/partner-apply")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="home" size={18} /> Làm shop</button>
                     <button onClick={() => handleNavigate("/partner")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="bed" size={18} /> Trung tâm đối tác</button>
                     <button onClick={() => handleNavigate("/admin")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="shield" size={18} /> Khu vực quản trị</button>
                   </div>

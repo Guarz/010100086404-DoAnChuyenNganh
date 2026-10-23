@@ -5,7 +5,7 @@ const paymentSchema = new mongoose.Schema({
   bookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', required: true },
   paymentMethod: {
     type: String,
-    enum: ['VNPay', 'Momo', 'Cash'],
+    enum: ['VNPay', 'Momo', 'Cash', 'Demo'],
     required: true
   },
   amount: { type: Number, required: true },

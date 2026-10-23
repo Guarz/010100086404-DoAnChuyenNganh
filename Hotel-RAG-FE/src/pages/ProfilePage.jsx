@@ -10,6 +10,8 @@ export default function ProfilePage({ onLogout }) {
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState("");
+  const [payingBookingId, setPayingBookingId] = useState("");
+  const [paymentError, setPaymentError] = useState("");
   const navigate = useNavigate();
 
   // 1. Lấy thông tin user từ LocalStorage
@@ -46,6 +48,33 @@ export default function ProfilePage({ onLogout }) {
       isCurrent = false;
     };
   }, [active]);
+
+  const handleDemoPayment = async (bookingId) => {
+    setPayingBookingId(bookingId);
+    setPaymentError("");
+    try {
+      const response = await API.post(`/payments/demo/${bookingId}`);
+      const payment = response.data.data.payment;
+      setBookings((previous) =>
+        previous.map((booking) =>
+          booking._id === bookingId
+            ? {
+                ...booking,
+                bookingStatus: response.data.data.bookingStatus,
+                payment,
+              }
+            : booking,
+        ),
+      );
+    } catch (error) {
+      setPaymentError(
+        error.response?.data?.message ||
+          "Không thể xử lý thanh toán demo. Vui lòng thử lại.",
+      );
+    } finally {
+      setPayingBookingId("");
+    }
+  };
 
   // State lưu dữ liệu form sửa đổi
   const [formData, setFormData] = useState({
@@ -182,6 +211,11 @@ export default function ProfilePage({ onLogout }) {
                   </p>
                 ) : (
                   <div className="mt-6 space-y-4">
+                    {paymentError && (
+                      <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                        {paymentError}
+                      </p>
+                    )}
                     {bookings.map((booking) => (
                       <article
                         key={booking._id}
@@ -241,6 +275,29 @@ export default function ProfilePage({ onLogout }) {
                         <p className="mt-4 text-right font-bold text-[#173b31]">
                           Tổng tiền: {booking.totalAmount.toLocaleString("vi-VN")}₫
                         </p>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                          <p className="text-sm text-slate-600">
+                            Thanh toán:{" "}
+                            <strong>
+                              {booking.payment?.paymentStatus === "Success"
+                                ? "Đã thanh toán demo"
+                                : "Chưa thanh toán"}
+                            </strong>
+                          </p>
+                          {booking.bookingStatus === "Pending" &&
+                            booking.payment?.paymentStatus !== "Success" && (
+                              <button
+                                type="button"
+                                onClick={() => handleDemoPayment(booking._id)}
+                                disabled={payingBookingId === booking._id}
+                                className="rounded-xl bg-[#173b31] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {payingBookingId === booking._id
+                                  ? "Đang xử lý..."
+                                  : "Thanh toán demo"}
+                              </button>
+                            )}
+                        </div>
                       </article>
                     ))}
                   </div>

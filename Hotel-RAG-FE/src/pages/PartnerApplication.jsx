@@ -1,117 +1,139 @@
-// File: src/pages/PartnerApplication.jsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Icon from "../components/Icon"; // Hoặc "../components/Icon"
+import Icon from "../components/Icon";
+import API from "../services/api";
+
+const statusMessages = {
+  NotRequested: "Bạn chưa gửi yêu cầu làm shop.",
+  Pending: "Yêu cầu đã được gửi. Vui lòng chờ quản trị viên duyệt.",
+  Approved: "Yêu cầu đã được duyệt. Bạn có thể vào Trung tâm đối tác.",
+  Rejected: "Yêu cầu trước đó chưa được duyệt. Bạn có thể gửi lại yêu cầu.",
+};
 
 export default function PartnerApplication() {
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
+  useEffect(() => {
+    let isCurrent = true;
+    API.get("/partner/application-status")
+      .then((response) => {
+        if (isCurrent) {
+          setStatus(response.data.data.status || "NotRequested");
+          if (response.data.data.role === "Partner") {
+            const user = JSON.parse(localStorage.getItem("nestly_user") || "null");
+            if (user) {
+              localStorage.setItem(
+                "nestly_user",
+                JSON.stringify({ ...user, role: "Partner" }),
+              );
+            }
+          }
+        }
+      })
+      .catch((requestError) => {
+        if (isCurrent) {
+          setError(
+            requestError.response?.data?.message ||
+              "Không thể tải trạng thái yêu cầu. Vui lòng thử lại.",
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  const handleApply = async () => {
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await API.post("/partner/apply");
+      setStatus(response.data.data.status);
+      setMessage(response.data.message);
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.message ||
+          "Không thể gửi yêu cầu. Vui lòng thử lại.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-[#f1eee6] py-14">
-      <div className="mx-auto grid max-w-5xl overflow-hidden rounded-3xl bg-white shadow-xl lg:grid-cols-[0.8fr_1.2fr]">
-        {/* Cột giới thiệu bên trái */}
-        <div className="bg-[#173b31] p-9 text-white lg:p-12">
-          <span className="grid size-12 place-items-center rounded-full bg-white/10 text-[#f2cc88]">
-            <Icon name="home" />
-          </span>
-          <h1 className="font-display mt-8 text-4xl leading-tight">Trở thành đối tác của Nestly</h1>
-          <p className="mt-5 leading-7 text-white/65">
-            Tiếp cận hàng triệu khách du lịch và quản lý chỗ nghỉ của bạn trên một nền tảng duy nhất.
+    <main className="min-h-[70vh] bg-[#f1eee6] px-5 py-14">
+      <section className="mx-auto max-w-2xl rounded-3xl bg-white p-8 shadow-xl sm:p-12">
+        <span className="grid size-14 place-items-center rounded-2xl bg-[#e8f2ed] text-[#173b31]">
+          <Icon name="home" size={24} />
+        </span>
+        <p className="mt-7 text-sm font-bold uppercase tracking-widest text-[#b7812d]">
+          Trở thành đối tác
+        </p>
+        <h1 className="font-display mt-2 text-3xl font-semibold text-[#173b31]">
+          Đăng ký làm shop
+        </h1>
+        <p className="mt-4 leading-7 text-stone-600">
+          Gửi yêu cầu để quản trị viên xét duyệt. Sau khi được duyệt, tài khoản
+          của bạn sẽ có quyền truy cập Trung tâm đối tác.
+        </p>
+
+        <div className="mt-7 rounded-2xl border border-stone-200 bg-stone-50 p-5">
+          <p className="text-sm font-semibold text-stone-500">Trạng thái</p>
+          <p className="mt-2 font-bold text-[#173b31]">
+            {loading ? "Đang tải trạng thái..." : statusMessages[status] || status}
           </p>
-          <div className="mt-10 space-y-5">
-            {["Thiết lập miễn phí", "Chủ động giá và lịch phòng", "Hỗ trợ đối tác 24/7"].map((item) => (
-              <p key={item} className="flex items-center gap-3 text-sm font-semibold">
-                <span className="grid size-6 place-items-center rounded-full bg-white/10">
-                  <Icon name="check" size={14} />
-                </span>
-                {item}
-              </p>
-            ))}
-          </div>
         </div>
 
-        {/* Cột Form đăng ký bên phải */}
-        <div className="p-8 lg:p-12">
-          {sent ? (
-            <div className="flex h-full min-h-96 flex-col items-center justify-center text-center">
-              <span className="grid size-16 place-items-center rounded-full bg-emerald-50 text-emerald-700">
-                <Icon name="check" size={28} />
-              </span>
-              <h2 className="font-display mt-6 text-3xl text-[#173b31]">Đã gửi đơn đăng ký</h2>
-              <p className="mt-3 max-w-md text-stone-500">
-                Admin sẽ xác minh thông tin và phản hồi trong vòng 1–2 ngày làm việc.
-              </p>
-              <button
-                onClick={() => navigate("/")}
-                className="mt-7 rounded-full bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b]"
-              >
-                Về trang chủ
-              </button>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm font-bold uppercase tracking-widest text-[#b7812d]">Đăng ký đối tác</p>
-              <h2 className="font-display mt-2 text-3xl text-[#173b31]">Thông tin của bạn</h2>
-              <div className="mt-7 grid gap-5 sm:grid-cols-2">
-                <label className="text-sm font-bold">
-                  Họ và tên
-                  <input
-                    className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal outline-none focus:border-[#b7812d]"
-                    defaultValue="Nguyễn Minh An"
-                  />
-                </label>
-                <label className="text-sm font-bold">
-                  Số điện thoại
-                  <input
-                    className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal outline-none focus:border-[#b7812d]"
-                    placeholder="09xx xxx xxx"
-                  />
-                </label>
-                <label className="text-sm font-bold sm:col-span-2">
-                  Email
-                  <input
-                    className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal outline-none focus:border-[#b7812d]"
-                    defaultValue="an.nguyen@email.com"
-                  />
-                </label>
-                <label className="text-sm font-bold">
-                  Loại hình sở hữu
-                  <select className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 font-normal">
-                    <option>Cá nhân</option>
-                    <option>Doanh nghiệp</option>
-                  </select>
-                </label>
-                <label className="text-sm font-bold">
-                  Khu vực chỗ nghỉ
-                  <select className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 font-normal">
-                    <option>Đà Nẵng</option>
-                    <option>Hội An</option>
-                    <option>Khánh Hòa</option>
-                  </select>
-                </label>
-                <label className="text-sm font-bold sm:col-span-2">
-                  Tên chỗ nghỉ dự kiến
-                  <input
-                    className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal outline-none focus:border-[#b7812d]"
-                    placeholder="Ví dụ: An Nhiên Garden"
-                  />
-                </label>
-              </div>
-              <label className="mt-5 flex items-start gap-3 text-sm text-stone-500">
-                <input type="checkbox" className="mt-1 accent-[#173b31]" />
-                Tôi xác nhận thông tin trên là chính xác và đồng ý với điều khoản dành cho đối tác.
-              </label>
-              <button
-                onClick={() => setSent(true)}
-                className="mt-7 w-full rounded-xl bg-[#173b31] py-3.5 font-bold text-white transition hover:bg-[#245a4b]"
-              >
-                Gửi đơn để xét duyệt
-              </button>
-            </>
+        {message && (
+          <p role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+            {message}
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-7 flex flex-wrap gap-3">
+          {(status === "NotRequested" || status === "Rejected") && !loading && (
+            <button
+              type="button"
+              onClick={handleApply}
+              disabled={submitting}
+              className="rounded-xl bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "Đang gửi..." : "Gửi yêu cầu làm shop"}
+            </button>
           )}
+          {status === "Approved" && (
+            <button
+              type="button"
+              onClick={() => navigate("/partner")}
+              className="rounded-xl bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b]"
+            >
+              Vào Trung tâm đối tác
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="rounded-xl border border-stone-200 px-6 py-3 font-bold text-stone-700 transition hover:bg-stone-50"
+          >
+            Về trang chủ
+          </button>
         </div>
-      </div>
+      </section>
     </main>
   );
 }

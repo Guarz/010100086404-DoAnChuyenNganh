@@ -1,5 +1,6 @@
 // File: controllers/bookingController.js
 const Booking = require('../models/Booking');
+const Payment = require('../models/Payment');
 const RoomInventory = require('../models/RoomInventory');
 const RoomType = require('../models/RoomType');
 const mongoose = require('mongoose');
@@ -146,7 +147,23 @@ exports.getMyBookings = async (req, res) => {
       .populate('hotelId', 'hotelName address')
       .populate('bookingDetails.roomTypeId', 'title');
 
-    return res.status(200).json({ success: true, data: bookings });
+    const payments = await Payment.find({
+      bookingId: { $in: bookings.map((booking) => booking._id) }
+    }).sort({ createdAt: -1 });
+    const paymentByBookingId = new Map();
+    for (const payment of payments) {
+      const bookingId = payment.bookingId.toString();
+      if (!paymentByBookingId.has(bookingId)) {
+        paymentByBookingId.set(bookingId, payment);
+      }
+    }
+
+    const data = bookings.map((booking) => ({
+      ...booking.toObject(),
+      payment: paymentByBookingId.get(booking._id.toString()) || null
+    }));
+
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     console.error('Lỗi lấy lịch sử đặt phòng:', error);
     return res.status(500).json({ success: false, message: 'Không thể tải lịch sử đặt phòng lúc này' });

@@ -7,7 +7,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 exports.register = async (req, res) => {
   try {
-    const { fullName, email, password, phone, role } = req.body;
+    const { fullName, email, password, phone } = req.body;
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ success: false, message: 'Email đã tồn tại' });
 
@@ -15,7 +15,7 @@ exports.register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new User({ 
-      fullName, email, password: hashedPassword, phone, role: role || 'Customer' 
+      fullName, email, password: hashedPassword, phone, role: 'Customer'
     });
     await newUser.save();
     

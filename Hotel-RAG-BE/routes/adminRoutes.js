@@ -2,11 +2,10 @@
 const express = require('express');
 const router = express.Router();
 const { getPendingHotels, approveHotel } = require('../controllers/adminController');
+const authenticateToken = require('../middleware/authMiddleware');
+const requireRole = require('../middleware/requireRole');
 
-// (Lưu ý: Trong thực tế, các route này phải được bảo vệ bằng middleware kiểm tra token (role: Admin). 
-// Tạm thời để test API, chúng ta mở public).
-
-router.get('/hotels/pending', getPendingHotels);
-router.put('/hotels/:id/approve', approveHotel);
+router.get('/hotels/pending', authenticateToken, requireRole('Admin'), getPendingHotels);
+router.put('/hotels/:id/approve', authenticateToken, requireRole('Admin'), approveHotel);
 
 module.exports = router;

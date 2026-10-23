@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const hotelRoutes = require('./Hotel-RAG-BE/routes/hotelRoutes');
 const bookingRoutes = require('./Hotel-RAG-BE/routes/bookingRoutes');
+const paymentRoutes = require('./Hotel-RAG-BE/routes/paymentRoutes');
 const adminRoutes = require('./Hotel-RAG-BE/routes/adminRoutes');
 const partnerRoutes = require('./Hotel-RAG-BE/routes/partnerRoutes');
 const aiRoutes = require('./Hotel-RAG-BE/routes/aiRoutes'); // Import route AI
@@ -19,8 +20,8 @@ app.use(express.json());
 
 // Kết nối MongoDB
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch((err) => console.error('❌ MongoDB connection error:', err));
+  .then(() => console.log('Connected to MongoDB'))
+  .catch((err) => console.error('MongoDB connection error:', err));
 
 // Route test cơ bản
 app.get('/api/health', (req, res) => {
@@ -29,6 +30,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/hotels', hotelRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes); 
 app.use('/api/partner', partnerRoutes);
 

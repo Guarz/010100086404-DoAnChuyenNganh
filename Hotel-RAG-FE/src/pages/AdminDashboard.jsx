@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Icon from "../components/Icon"; // Hoặc "../components/Icon"
 import StatCard from "../components/StatCard";
+import API from "../services/api";
 
 const photos = {
   anam: "https://images.unsplash.com/photo-1596178065887-1198b6148b2b?auto=format&fit=crop&w=900&q=85",
@@ -15,17 +16,30 @@ const initialSubmissions = [
   { id: 3, name: "The Fern Hội An", owner: "Lê Hoàng Nam", city: "Hội An", rooms: 6, submitted: "18 thg 6, 11:05", image: photos.anam, status: "pending" },
 ];
 
-const initialPartnerApplications = [
-  { id: 11, name: "Nguyễn Minh An", email: "an.nguyen@email.com", phone: "0912 345 678", property: "An Nhiên Garden", area: "Đà Nẵng", sent: "Hôm nay, 08:30" },
-  { id: 12, name: "Phạm Thùy Linh", email: "linh.pham@email.com", phone: "0988 120 456", property: "Linh House", area: "Đà Lạt", sent: "Hôm qua, 14:15" },
-  { id: 13, name: "Đỗ Quốc Huy", email: "huydo@email.com", phone: "0905 771 220", property: "Sea Wind Homestay", area: "Quy Nhơn", sent: "18 thg 6, 09:05" },
-];
-
 export default function AdminDashboard() {
   const [items, setItems] = useState(initialSubmissions);
-  const [partners, setPartners] = useState(initialPartnerApplications);
+  const [partners, setPartners] = useState([]);
+  const [partnersLoading, setPartnersLoading] = useState(false);
+  const [partnersError, setPartnersError] = useState("");
+  const [reviewingPartnerId, setReviewingPartnerId] = useState("");
   const [tab, setTab] = useState("hotels");
   const [toast, setToast] = useState("");
+
+  const loadPartnerApplications = async () => {
+    setPartnersLoading(true);
+    setPartnersError("");
+    try {
+      const response = await API.get("/partner/applications/pending");
+      setPartners(response.data.data);
+    } catch (error) {
+      setPartnersError(
+        error.response?.data?.message ||
+          "Không thể tải yêu cầu làm shop. Vui lòng thử lại.",
+      );
+    } finally {
+      setPartnersLoading(false);
+    }
+  };
 
   const decide = (id, decision) => {
     const property = items.find((item) => item.id === id);
@@ -33,10 +47,25 @@ export default function AdminDashboard() {
     setToast(`${property?.name} đã được ${decision}.`);
   };
 
-  const decidePartner = (id, decision) => {
-    const partner = partners.find((item) => item.id === id);
-    setPartners(partners.filter((item) => item.id !== id));
-    setToast(`Đơn của ${partner?.name} đã được ${decision}.`);
+  const decidePartner = async (partner, decision) => {
+    setReviewingPartnerId(partner._id);
+    setPartnersError("");
+    try {
+      const response = await API.put(
+        `/partner/applications/${partner._id}/${decision}`,
+      );
+      setPartners((current) =>
+        current.filter((item) => item._id !== partner._id),
+      );
+      setToast(response.data.message);
+    } catch (error) {
+      setPartnersError(
+        error.response?.data?.message ||
+          "Không thể xét duyệt yêu cầu. Vui lòng thử lại.",
+      );
+    } finally {
+      setReviewingPartnerId("");
+    }
   };
 
   return (
@@ -69,7 +98,7 @@ export default function AdminDashboard() {
           <StatCard icon="clock" label="Khách sạn chờ duyệt" value={String(items.length + 21)} note="5 hồ sơ mới hôm nay" />
           <StatCard icon="check" label="Đã duyệt tháng này" value="148" note="Trung bình 18 giờ / hồ sơ" />
           <StatCard icon="home" label="Tổng chỗ nghỉ" value="12.486" note="↑ 6,2% trong 30 ngày" />
-          <StatCard icon="users" label="Đơn partner chờ duyệt" value={String(partners.length)} note="94% hồ sơ đủ thông tin" />
+          <StatCard icon="users" label="Đơn partner chờ duyệt" value={partnersLoading ? "..." : String(partners.length)} note="Yêu cầu làm shop" />
         </div>
 
         <div className="mt-8 flex w-fit rounded-full bg-stone-200/70 p-1">
@@ -82,7 +111,10 @@ export default function AdminDashboard() {
             Duyệt khách sạn <span className="ml-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs">{items.length}</span>
           </button>
           <button
-            onClick={() => setTab("partners")}
+            onClick={() => {
+              setTab("partners");
+              loadPartnerApplications();
+            }}
             className={`rounded-full px-5 py-2.5 text-sm font-bold transition ${
               tab === "partners" ? "bg-white text-[#173b31] shadow-sm" : "text-stone-500"
             }`}
@@ -98,40 +130,56 @@ export default function AdminDashboard() {
               <p className="mt-1 text-sm text-stone-500">Kiểm tra thông tin chủ sở hữu trước khi cấp quyền đăng chỗ nghỉ.</p>
             </div>
             <div className="divide-y divide-stone-100">
-              {partners.length === 0 && (
-                <div className="p-14 text-center text-stone-500">Tất cả đơn đăng ký partner đã được xử lý.</div>
+              {partnersError && (
+                <div role="alert" className="m-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                  {partnersError}
+                  <button
+                    type="button"
+                    onClick={loadPartnerApplications}
+                    className="ml-3 underline"
+                  >
+                    Tải lại
+                  </button>
+                </div>
               )}
-              {partners.map((partner) => (
-                <article key={partner.id} className="grid gap-5 p-6 lg:grid-cols-[56px_1fr_auto] lg:items-center">
+              {partnersLoading ? (
+                <div className="p-14 text-center text-stone-500">Đang tải yêu cầu...</div>
+              ) : partners.length === 0 && !partnersError ? (
+                <div className="p-14 text-center text-stone-500">Tất cả đơn đăng ký partner đã được xử lý.</div>
+              ) : partners.map((partner) => (
+                <article key={partner._id} className="grid gap-5 p-6 lg:grid-cols-[56px_1fr_auto] lg:items-center">
                   <span className="grid size-14 place-items-center rounded-full bg-[#e8f2ed] font-display text-lg text-[#173b31]">
-                    {partner.name.split(" ").slice(-2).map((word) => word[0]).join("")}
+                    {partner.fullName.split(" ").slice(-2).map((word) => word[0]).join("")}
                   </span>
                   <div>
                     <div className="flex items-center gap-3">
-                      <h3 className="font-bold text-stone-900">{partner.name}</h3>
+                      <h3 className="font-bold text-stone-900">{partner.fullName}</h3>
                       <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-extrabold text-amber-700">
-                        CHỜ XÁC MINH
+                        CHỜ DUYỆT
                       </span>
                     </div>
-                    <p className="mt-1.5 text-sm text-stone-500">{partner.email} · {partner.phone}</p>
-                    <p className="mt-2 text-sm"><strong>Chỗ nghỉ dự kiến:</strong> {partner.property} · {partner.area}</p>
-                    <p className="mt-2 text-xs text-stone-400">Gửi lúc {partner.sent}</p>
+                    <p className="mt-1.5 text-sm text-stone-500">{partner.email}{partner.phone ? ` · ${partner.phone}` : ""}</p>
+                    <p className="mt-2 text-xs text-stone-400">
+                      Gửi lúc {new Date(partner.createdAt).toLocaleString("vi-VN")}
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button className="rounded-full border border-stone-200 px-4 py-2.5 text-sm font-bold transition hover:bg-stone-50">
-                      Xem giấy tờ
-                    </button>
                     <button
-                      onClick={() => decidePartner(partner.id, "từ chối")}
+                      type="button"
+                      onClick={() => decidePartner(partner, "reject")}
+                      disabled={reviewingPartnerId === partner._id}
                       className="rounded-full border border-red-200 px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-50"
                     >
                       Từ chối
                     </button>
                     <button
-                      onClick={() => decidePartner(partner.id, "phê duyệt")}
-                      className="flex items-center gap-2 rounded-full bg-[#173b31] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#245a4b]"
+                      type="button"
+                      onClick={() => decidePartner(partner, "approve")}
+                      disabled={reviewingPartnerId === partner._id}
+                      className="flex items-center gap-2 rounded-full bg-[#173b31] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <Icon name="check" size={16} /> Duyệt partner
+                      <Icon name="check" size={16} />
+                      {reviewingPartnerId === partner._id ? "Đang xử lý..." : "Duyệt partner"}
                     </button>
                   </div>
                 </article>

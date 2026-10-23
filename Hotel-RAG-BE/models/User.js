@@ -11,6 +11,11 @@ const userSchema = new mongoose.Schema({
     enum: ['Customer', 'Partner', 'Admin'], // Chuẩn hóa viết hoa chữ đầu
     default: 'Customer' 
   },
+  partnerApplicationStatus: {
+    type: String,
+    enum: ['NotRequested', 'Pending', 'Approved', 'Rejected'],
+    default: 'NotRequested'
+  },
   status: { 
     type: String, 
     enum: ['Active', 'Locked'], 

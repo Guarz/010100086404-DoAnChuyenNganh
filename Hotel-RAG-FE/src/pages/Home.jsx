@@ -60,7 +60,7 @@ export default function Home() {
             <span className="grid size-12 place-items-center rounded-full bg-[#e2b765] text-white"><Icon name="home" size={23} /></span>
             <h2 className="font-display mt-7 text-4xl font-semibold leading-tight text-[#173b31] sm:text-5xl">Biến chỗ trống thành<br /><span className="italic">nguồn thu mới.</span></h2>
             <p className="mt-6 max-w-lg text-lg leading-8 text-stone-600">Đăng khách sạn, villa hoặc homestay của bạn. Nestly đồng hành từ bước thiết lập đầu tiên đến khi đón những vị khách đầu tiên.</p>
-            <button onClick={() => navigate("/partner-apply")} className="mt-8 flex items-center gap-2 rounded-full bg-[#173b31] px-6 py-3.5 font-bold text-white transition hover:bg-[#245a4b]">Trở thành đối tác <Icon name="arrow" size={18} /></button>
+            <button onClick={() => navigate("/partner-apply")} className="mt-8 flex items-center gap-2 rounded-full bg-[#173b31] px-6 py-3.5 font-bold text-white transition hover:bg-[#245a4b]">Làm shop <Icon name="arrow" size={18} /></button>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="rounded-2xl bg-white p-6 shadow-sm"><p className="font-display text-4xl font-semibold text-[#173b31]">18%</p><p className="mt-2 text-sm leading-6 text-stone-500">Thu nhập trung bình tăng sau 3 tháng</p></div>

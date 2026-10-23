@@ -35,6 +35,9 @@ export default function HotelDetail() {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [bookingSuccess, setBookingSuccess] = useState("");
+  const [pendingPayment, setPendingPayment] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
 
   const handleBooking = async (event) => {
     event.preventDefault();
@@ -70,7 +73,11 @@ export default function HotelDetail() {
         specialRequests,
       });
 
-      setBookingSuccess(response.data.message || "Đặt phòng thành công!");
+      setPendingPayment({
+        id: response.data.data._id,
+        amount: response.data.data.totalAmount,
+      });
+      setBookingSuccess("Đơn đã được tạo. Hoàn tất thanh toán demo để xác nhận.");
       setBookingRoomId("");
       setSpecialRequests("");
     } catch (error) {
@@ -80,6 +87,27 @@ export default function HotelDetail() {
       );
     } finally {
       setBookingLoading(false);
+    }
+  };
+
+  const handleDemoPayment = async () => {
+    if (!pendingPayment || paymentLoading) return;
+
+    setPaymentLoading(true);
+    setPaymentError("");
+    try {
+      const response = await API.post(
+        `/payments/demo/${pendingPayment.id}`,
+      );
+      setBookingSuccess(response.data.message);
+      setPendingPayment(null);
+    } catch (error) {
+      setPaymentError(
+        error.response?.data?.message ||
+          "Không thể xử lý thanh toán demo. Vui lòng thử lại.",
+      );
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -275,6 +303,34 @@ export default function HotelDetail() {
               <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
                 {bookingSuccess}
               </p>
+            )}
+
+            {pendingPayment && (
+              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <h3 className="font-bold text-[#173b31]">Thanh toán demo</h3>
+                <p className="mt-2 text-sm text-stone-600">
+                  Đây là mô phỏng để thử luồng thanh toán, không thu tiền thật
+                  và không yêu cầu nhập thông tin thẻ.
+                </p>
+                <p className="mt-4 text-lg font-extrabold text-[#173b31]">
+                  {pendingPayment.amount.toLocaleString("vi-VN")}₫
+                </p>
+                {paymentError && (
+                  <p role="alert" className="mt-3 text-sm font-semibold text-red-600">
+                    {paymentError}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleDemoPayment}
+                  disabled={paymentLoading}
+                  className="mt-4 w-full rounded-xl bg-[#173b31] px-5 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {paymentLoading
+                    ? "Đang xử lý..."
+                    : "Mô phỏng thanh toán thành công"}
+                </button>
+              </section>
             )}
 
             {rooms.length === 0 ? (

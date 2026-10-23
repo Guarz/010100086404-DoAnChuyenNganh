@@ -1,14 +1,105 @@
 // File: controllers/partnerController.js
 const Hotel = require('../models/Hotel');
+const User = require('../models/User');
 const mongoose = require('mongoose');
 const RoomType = require('../models/RoomType');
 const RoomInventory = require('../models/RoomInventory');
+
+exports.getApplicationStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .select('role partnerApplicationStatus');
+    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        role: user.role,
+        status: user.partnerApplicationStatus
+      }
+    });
+  } catch (error) {
+    console.error('Lỗi lấy trạng thái đăng ký partner:', error);
+    return res.status(500).json({ success: false, message: 'Không thể tải trạng thái đăng ký lúc này' });
+  }
+};
+
+exports.applyForPartner = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
+    if (user.role === 'Admin' || user.role === 'Partner') {
+      return res.status(409).json({ success: false, message: 'Tài khoản của bạn đã có quyền đối tác hoặc quản trị' });
+    }
+    if (user.partnerApplicationStatus === 'Pending') {
+      return res.status(409).json({ success: false, message: 'Yêu cầu của bạn đang chờ quản trị viên duyệt' });
+    }
+
+    user.partnerApplicationStatus = 'Pending';
+    await user.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Đã gửi yêu cầu làm shop. Vui lòng chờ quản trị viên duyệt.',
+      data: { status: user.partnerApplicationStatus }
+    });
+  } catch (error) {
+    console.error('Lỗi gửi yêu cầu partner:', error);
+    return res.status(500).json({ success: false, message: 'Không thể gửi yêu cầu lúc này' });
+  }
+};
+
+exports.getPendingPartnerApplications = async (req, res) => {
+  try {
+    const users = await User.find({ partnerApplicationStatus: 'Pending' })
+      .select('fullName email phone createdAt partnerApplicationStatus')
+      .sort({ createdAt: 1 });
+    return res.status(200).json({ success: true, count: users.length, data: users });
+  } catch (error) {
+    console.error('Lỗi lấy yêu cầu partner:', error);
+    return res.status(500).json({ success: false, message: 'Không thể tải danh sách yêu cầu partner' });
+  }
+};
+
+exports.reviewPartnerApplication = async (req, res) => {
+  try {
+    const { decision } = req.params;
+    if (!['approve', 'reject'].includes(decision)) {
+      return res.status(400).json({ success: false, message: 'Quyết định duyệt không hợp lệ' });
+    }
+
+    const user = await User.findOne({
+      _id: req.params.userId,
+      partnerApplicationStatus: 'Pending'
+    });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy yêu cầu đang chờ duyệt' });
+    }
+
+    user.partnerApplicationStatus = decision === 'approve' ? 'Approved' : 'Rejected';
+    if (decision === 'approve') user.role = 'Partner';
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: decision === 'approve' ? 'Đã duyệt đối tác' : 'Đã từ chối yêu cầu đối tác',
+      data: {
+        _id: user._id,
+        fullName: user.fullName,
+        role: user.role,
+        status: user.partnerApplicationStatus
+      }
+    });
+  } catch (error) {
+    console.error('Lỗi xét duyệt yêu cầu partner:', error);
+    return res.status(500).json({ success: false, message: 'Không thể xét duyệt yêu cầu lúc này' });
+  }
+};
 
 // [POST] /api/partner/hotels - Partner tạo khách sạn mới
 exports.createHotel = async (req, res) => {
   try {
     const {
-      partnerId, // ID của chủ khách sạn (sau này lấy từ Token)
       hotelName,
       description,
       address, // Object: { street, city, province }
@@ -18,16 +109,16 @@ exports.createHotel = async (req, res) => {
     } = req.body;
 
     // 1. Validate dữ liệu cơ bản
-    if (!partnerId || !hotelName || !address || !address.city) {
+    if (!hotelName || !address || !address.city) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Vui lòng cung cấp đủ thông tin bắt buộc (partnerId, hotelName, address.city)' 
+        message: 'Vui lòng cung cấp đủ thông tin bắt buộc (hotelName, address.city)'
       });
     }
 
     // 2. Tạo object Khách sạn mới
     const newHotel = new Hotel({
-      partnerId,
+      partnerId: req.user.id,
       hotelName,
       description,
       address,
@@ -61,7 +152,6 @@ exports.createRoomType = async (req, res) => {
   try {
     const { hotelId } = req.params;
     const {
-      partnerId, 
       title,
       description,
       basePrice,
@@ -76,7 +166,7 @@ exports.createRoomType = async (req, res) => {
     const hotel = await Hotel.findById(hotelId);
     if (!hotel) return res.status(404).json({ success: false, message: 'Không tìm thấy khách sạn' });
     
-    if (hotel.partnerId.toString() !== partnerId) {
+    if (hotel.partnerId.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền thêm phòng vào khách sạn này' });
     }
     
@@ -137,7 +227,7 @@ exports.createRoomType = async (req, res) => {
 exports.updateInventory = async (req, res) => {
   try {
     const { inventoryId } = req.params;
-    const { partnerId, dynamicPrice, availableRooms } = req.body;
+    const { dynamicPrice, availableRooms } = req.body;
 
     // 1. MỚI: Truy xuất lồng nhau (Inventory -> RoomType -> Hotel)
     const inventory = await RoomInventory.findById(inventoryId).populate({
@@ -152,7 +242,7 @@ exports.updateInventory = async (req, res) => {
     }
 
     // 2. MỚI: Kiểm tra bảo mật qua chuỗi liên kết
-    if (inventory.roomTypeId.hotelId.partnerId.toString() !== partnerId) {
+    if (inventory.roomTypeId.hotelId.partnerId.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền sửa quỹ phòng của khách sạn này' });
     }
 
