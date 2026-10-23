@@ -22,8 +22,39 @@ export default function AdminDashboard() {
   const [partnersLoading, setPartnersLoading] = useState(false);
   const [partnersError, setPartnersError] = useState("");
   const [reviewingPartnerId, setReviewingPartnerId] = useState("");
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState("");
+  const [updatingUserId, setUpdatingUserId] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState("all");
+  const [userStatusFilter, setUserStatusFilter] = useState("all");
   const [tab, setTab] = useState("hotels");
   const [toast, setToast] = useState("");
+
+  const currentUserId = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("nestly_user") || "null")?._id || "";
+    } catch {
+      return "";
+    }
+  })();
+
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    setUsersError("");
+    try {
+      const response = await API.get("/admin/users");
+      setUsers(response.data.data);
+    } catch (error) {
+      setUsersError(
+        error.response?.data?.message ||
+          "Không thể tải danh sách người dùng. Vui lòng thử lại.",
+      );
+    } finally {
+      setUsersLoading(false);
+    }
+  };
 
   const loadPartnerApplications = async () => {
     setPartnersLoading(true);
@@ -68,6 +99,45 @@ export default function AdminDashboard() {
     }
   };
 
+  const updateUserStatus = async (user) => {
+    const nextStatus = user.status === "Locked" ? "Active" : "Locked";
+    const actionLabel = nextStatus === "Locked" ? "khóa" : "mở khóa";
+    if (!window.confirm(`Bạn có chắc muốn ${actionLabel} tài khoản ${user.fullName}?`)) {
+      return;
+    }
+
+    setUpdatingUserId(user._id);
+    setUsersError("");
+    try {
+      const response = await API.put(`/admin/users/${user._id}/status`, {
+        status: nextStatus,
+      });
+      setUsers((current) =>
+        current.map((item) => item._id === user._id ? response.data.data : item),
+      );
+      setToast(response.data.message);
+    } catch (error) {
+      setUsersError(
+        error.response?.data?.message ||
+          "Không thể cập nhật trạng thái tài khoản. Vui lòng thử lại.",
+      );
+    } finally {
+      setUpdatingUserId("");
+    }
+  };
+
+  const filteredUsers = users.filter((user) => {
+    const search = userSearch.trim().toLocaleLowerCase("vi");
+    const matchesSearch =
+      !search ||
+      [user.fullName, user.email, user.phone]
+        .filter(Boolean)
+        .some((value) => value.toLocaleLowerCase("vi").includes(search));
+    const matchesRole = userRoleFilter === "all" || user.role === userRoleFilter;
+    const matchesStatus = userStatusFilter === "all" || user.status === userStatusFilter;
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
   return (
     <main className="min-h-screen bg-[#f7f5ef]">
       <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
@@ -76,8 +146,8 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-2 text-sm font-bold text-[#b7812d]">
               <Icon name="shield" size={17} /> KHU VỰC QUẢN TRỊ
             </div>
-            <h1 className="font-display mt-3 text-4xl font-semibold text-[#173b31]">Trung tâm phê duyệt</h1>
-            <p className="mt-2 text-stone-500">Quản lý đối tác và các chỗ nghỉ được phép xuất hiện trên Nestly.</p>
+            <h1 className="font-display mt-3 text-4xl font-semibold text-[#173b31]">Trung tâm quản trị</h1>
+            <p className="mt-2 text-stone-500">Quản lý người dùng, đối tác và các chỗ nghỉ trên Nestly.</p>
           </div>
           <div className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm">
             <span className="size-2 rounded-full bg-emerald-500" /> Hệ thống hoạt động tốt
@@ -121,7 +191,155 @@ export default function AdminDashboard() {
           >
             Duyệt partner <span className="ml-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs">{partners.length}</span>
           </button>
+          <button
+            onClick={() => {
+              setTab("users");
+              loadUsers();
+            }}
+            className={`rounded-full px-5 py-2.5 text-sm font-bold transition ${
+              tab === "users" ? "bg-white text-[#173b31] shadow-sm" : "text-stone-500"
+            }`}
+          >
+            Quản lý người dùng
+          </button>
         </div>
+
+        {tab === "users" && (
+          <section className="mt-5 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+            <div className="border-b border-stone-200 p-6">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                <div>
+                  <h2 className="font-display text-2xl font-semibold text-[#173b31]">Danh sách người dùng</h2>
+                  <p className="mt-1 text-sm text-stone-500">
+                    {usersLoading ? "Đang tải..." : `${filteredUsers.length} / ${users.length} tài khoản`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadUsers}
+                  disabled={usersLoading}
+                  className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold text-stone-700 transition hover:bg-stone-50 disabled:opacity-60"
+                >
+                  Tải lại
+                </button>
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-[1fr_180px_180px]">
+                <input
+                  type="search"
+                  value={userSearch}
+                  onChange={(event) => setUserSearch(event.target.value)}
+                  placeholder="Tìm theo tên, email hoặc số điện thoại"
+                  aria-label="Tìm người dùng"
+                  className="rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-[#173b31]"
+                />
+                <select
+                  value={userRoleFilter}
+                  onChange={(event) => setUserRoleFilter(event.target.value)}
+                  aria-label="Lọc theo vai trò"
+                  className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#173b31]"
+                >
+                  <option value="all">Tất cả vai trò</option>
+                  <option value="Customer">Khách hàng</option>
+                  <option value="Partner">Đối tác</option>
+                  <option value="Admin">Quản trị viên</option>
+                </select>
+                <select
+                  value={userStatusFilter}
+                  onChange={(event) => setUserStatusFilter(event.target.value)}
+                  aria-label="Lọc theo trạng thái"
+                  className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#173b31]"
+                >
+                  <option value="all">Tất cả trạng thái</option>
+                  <option value="Active">Đang hoạt động</option>
+                  <option value="Locked">Đã khóa</option>
+                </select>
+              </div>
+            </div>
+
+            {usersError && (
+              <div role="alert" className="m-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                {usersError}
+              </div>
+            )}
+            {usersLoading ? (
+              <div className="p-14 text-center text-stone-500">Đang tải danh sách người dùng...</div>
+            ) : usersError && users.length === 0 ? (
+              <div className="p-8 text-center text-sm text-stone-500">
+                Chưa thể hiển thị dữ liệu. Hãy thử tải lại sau.
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="p-14 text-center text-stone-500">
+                {users.length === 0 ? "Chưa có người dùng nào." : "Không tìm thấy người dùng phù hợp."}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[850px] text-left text-sm">
+                  <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+                    <tr>
+                      <th className="px-6 py-4 font-bold">Người dùng</th>
+                      <th className="px-6 py-4 font-bold">Liên hệ</th>
+                      <th className="px-6 py-4 font-bold">Vai trò</th>
+                      <th className="px-6 py-4 font-bold">Trạng thái</th>
+                      <th className="px-6 py-4 font-bold">Ngày tham gia</th>
+                      <th className="px-6 py-4 text-right font-bold">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {filteredUsers.map((user) => {
+                      const isCurrentUser = user._id === currentUserId;
+                      return (
+                        <tr key={user._id}>
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-stone-900">{user.fullName}</p>
+                            {isCurrentUser && (
+                              <p className="mt-1 text-xs text-stone-400">Tài khoản admin đang đăng nhập</p>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-stone-600">
+                            <p>{user.email}</p>
+                            <p className="mt-1 text-xs text-stone-400">{user.phone || "Chưa có số điện thoại"}</p>
+                          </td>
+                          <td className="px-6 py-4 text-stone-600">
+                            {{ Customer: "Khách hàng", Partner: "Đối tác", Admin: "Quản trị viên" }[user.role] || user.role}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+                              user.status === "Locked"
+                                ? "bg-red-50 text-red-700"
+                                : "bg-emerald-50 text-emerald-700"
+                            }`}>
+                              {user.status === "Locked" ? "Đã khóa" : "Đang hoạt động"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-stone-600">
+                            {new Date(user.createdAt).toLocaleDateString("vi-VN")}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => updateUserStatus(user)}
+                              disabled={isCurrentUser || updatingUserId === user._id}
+                              title={isCurrentUser ? "Không thể đổi trạng thái tài khoản đang đăng nhập" : undefined}
+                              className={`rounded-full px-4 py-2 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                user.status === "Locked"
+                                  ? "border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                  : "border border-red-200 text-red-700 hover:bg-red-50"
+                              }`}
+                            >
+                              {updatingUserId === user._id
+                                ? "Đang cập nhật..."
+                                : user.status === "Locked" ? "Mở khóa" : "Khóa tài khoản"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
 
         {tab === "partners" && (
           <section className="mt-5 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">

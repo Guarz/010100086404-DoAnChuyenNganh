@@ -147,11 +147,10 @@ Chỉ các khách sạn đã có embedding mới phù hợp với tìm kiếm ve
 ### Quản trị viên (Admin)
 
 - Có route `/admin` dành cho role `Admin`.
-- Backend có API lấy yêu cầu làm shop, duyệt/từ chối yêu cầu, lấy khách sạn chờ duyệt và duyệt khách sạn; các API admin yêu cầu JWT với role `Admin`.
+- Có thể xem danh sách người dùng, tìm theo tên/email/số điện thoại, lọc theo vai trò/trạng thái và khóa/mở khóa tài khoản. Admin không thể tự thay đổi trạng thái tài khoản đang đăng nhập.
+- Backend có API lấy yêu cầu làm shop, duyệt/từ chối yêu cầu, lấy danh sách người dùng, khóa/mở khóa tài khoản, lấy khách sạn chờ duyệt và duyệt khách sạn; các API quản trị yêu cầu JWT với role `Admin`.
 - Duyệt khách sạn gọi dịch vụ tạo embedding.
-- **Lưu ý trạng thái hiện tại:** dashboard quản trị hiển thị dữ liệu mẫu và thao tác trên giao diện chưa nối hoàn chỉnh với các API quản trị.
-
-> Kiểm tra role trong frontend chỉ phục vụ điều hướng giao diện. Các API partner/admin hiện chưa được bảo vệ đầy đủ bằng middleware xác thực và phân quyền backend; không nên xem đây là cấu hình an toàn để triển khai production.
+- **Lưu ý:** tab duyệt khách sạn trên dashboard vẫn đang hiển thị dữ liệu mẫu; thao tác duyệt/từ chối tại tab này chưa nối hoàn chỉnh với API khách sạn.
 
 ## API chính
 
@@ -167,6 +166,8 @@ Chỉ các khách sạn đã có embedding mới phù hợp với tìm kiếm ve
 | `POST` | `/api/bookings` | Tạo booking (cần JWT) |
 | `GET` | `/api/bookings/mine` | Lịch sử booking của tài khoản hiện tại (cần JWT) |
 | `POST` | `/api/payments/demo/:bookingId` | Mô phỏng thanh toán và xác nhận booking của tài khoản hiện tại (cần JWT) |
+| `GET` | `/api/admin/users` | Danh sách người dùng, không trả về mật khẩu (cần JWT Admin) |
+| `PUT` | `/api/admin/users/:userId/status` | Khóa hoặc mở khóa tài khoản (cần JWT Admin) |
 | `GET` | `/api/admin/hotels/pending` | Lấy khách sạn chờ duyệt |
 | `PUT` | `/api/admin/hotels/:id/approve` | Duyệt khách sạn và tạo embedding |
 | `POST` | `/api/partner/hotels` | Tạo khách sạn đối tác |
@@ -192,4 +193,4 @@ npm run build
 - Không commit `.env`, mật khẩu database, JWT secret hoặc Gemini API key.
 - Thanh toán demo chỉ để trình diễn; không kết nối ngân hàng/cổng thanh toán và không xác nhận đã thu tiền thật.
 - Booking chỉ tạo được khi tồn kho có đủ bản ghi cho toàn bộ ngày lưu trú. Tạo booking sẽ trừ tồn kho; hiện chưa có cơ chế tự hủy đơn Pending hoặc tự hoàn tồn kho khi khách không thanh toán.
-- API booking và lịch sử booking có JWT; các route admin/partner hiện chưa có xác thực/phân quyền server-side đầy đủ.
+- API booking và lịch sử booking có JWT; các API admin/partner hiện dùng middleware xác thực JWT và kiểm tra role ở backend.
