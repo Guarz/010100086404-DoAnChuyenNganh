@@ -44,7 +44,7 @@ export default function AuthPage({ mode = "login", onSuccess }) {
           localStorage.setItem("nestly_user", JSON.stringify(res.data.user));
 
           if (onSuccess) onSuccess();
-          navigate("/profile");
+          navigate(res.data.user.role === "Admin" ? "/admin" : "/profile");
         }
       } else {
         // GỌI API ĐĂNG KÝ

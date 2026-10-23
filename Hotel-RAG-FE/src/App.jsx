@@ -19,7 +19,11 @@ import ProtectedRoute from "./components/ProtectedRoute"; // <- MỚI
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const handleLogout = () => setLoggedIn(false);
+  const handleLogout = () => {
+    localStorage.removeItem("nestly_token");
+    localStorage.removeItem("nestly_user");
+    setLoggedIn(false);
+  };
 
   return (
     <BrowserRouter>

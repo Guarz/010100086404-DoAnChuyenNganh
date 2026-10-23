@@ -32,6 +32,11 @@ export default function Header({ loggedIn, onLogout }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const handleLogout = () => {
+    onLogout();
+    handleNavigate("/login");
+  };
+
   return (
     <header className="sticky top-0 z-50 py-2 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex h-16 py-1 max-w-7xl items-center justify-between px-5 lg:px-8">
@@ -75,7 +80,7 @@ export default function Header({ loggedIn, onLogout }) {
                     <button onClick={() => handleNavigate("/partner")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="bed" size={18} /> Trung tâm đối tác</button>
                     <button onClick={() => handleNavigate("/admin")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="shield" size={18} /> Khu vực quản trị</button>
                   </div>
-                  <div className="border-t border-slate-100 p-2"><button onClick={() => { onLogout(); setOpen(false); }} className="w-full rounded-xl px-3 py-3 text-left text-sm font-semibold text-red-600 hover:bg-red-50">Đăng xuất</button></div>
+                  <div className="border-t border-slate-100 p-2"><button onClick={handleLogout} className="w-full rounded-xl px-3 py-3 text-left text-sm font-semibold text-red-600 hover:bg-red-50">Đăng xuất</button></div>
                 </>
               ) : (
                 <div className="p-5">
