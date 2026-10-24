@@ -7,12 +7,14 @@ const {
   getPendingHotels,
   approveHotel
 } = require('../controllers/adminController');
-const authenticateToken = require('../middleware/authMiddleware');
-const requireRole = require('../middleware/requireRole');
 
-router.get('/users', authenticateToken, requireRole('Admin'), getUsers);
-router.put('/users/:userId/status', authenticateToken, requireRole('Admin'), updateUserStatus);
-router.get('/hotels/pending', authenticateToken, requireRole('Admin'), getPendingHotels);
-router.put('/hotels/:id/approve', authenticateToken, requireRole('Admin'), approveHotel);
+// 1. GOM IMPORT: Lấy cả 2 hàm từ chung một file authMiddleware.js
+const { authenticateUser, authorizeRoles } = require('../middleware/authMiddleware');
+
+// 2. CẬP NHẬT BIẾN: Đổi thành authenticateUser và authorizeRoles
+router.get('/users', authenticateUser, authorizeRoles('Admin'), getUsers);
+router.put('/users/:userId/status', authenticateUser, authorizeRoles('Admin'), updateUserStatus);
+router.get('/hotels/pending', authenticateUser, authorizeRoles('Admin'), getPendingHotels);
+router.put('/hotels/:id/approve', authenticateUser, authorizeRoles('Admin'), approveHotel);
 
 module.exports = router;

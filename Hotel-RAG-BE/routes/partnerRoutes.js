@@ -1,25 +1,30 @@
 // File: routes/partnerRoutes.js
 const express = require('express');
 const router = express.Router();
-const { createHotel } = require('../controllers/partnerController');
-const { createRoomType } = require('../controllers/partnerController');
-const { updateInventory } = require('../controllers/partnerController');
-const {
+
+// Gom gọn các hàm import từ partnerController
+const { 
+  createHotel, 
+  createRoomType, 
+  updateInventory,
   applyForPartner,
   getApplicationStatus,
   getPendingPartnerApplications,
-  reviewPartnerApplication
+  reviewPartnerApplication,
+  getMyHotels
 } = require('../controllers/partnerController');
-const authenticateToken = require('../middleware/authMiddleware');
-const requireRole = require('../middleware/requireRole');
 
-router.get('/application-status', authenticateToken, getApplicationStatus);
-router.post('/apply', authenticateToken, applyForPartner);
-router.get('/applications/pending', authenticateToken, requireRole('Admin'), getPendingPartnerApplications);
-router.put('/applications/:userId/:decision', authenticateToken, requireRole('Admin'), reviewPartnerApplication);
+// Import đúng tên 2 hàm từ Middleware
+const { authenticateUser, authorizeRoles } = require('../middleware/authMiddleware');
 
-router.post('/hotels', authenticateToken, requireRole('Partner', 'Admin'), createHotel);
-router.post('/hotels/:hotelId/rooms', authenticateToken, requireRole('Partner', 'Admin'), createRoomType);
-router.put('/inventory/:inventoryId', authenticateToken, requireRole('Partner', 'Admin'), updateInventory);
+router.get('/application-status', authenticateUser, getApplicationStatus);
+router.post('/apply', authenticateUser, applyForPartner);
+router.get('/applications/pending', authenticateUser, authorizeRoles('Admin'), getPendingPartnerApplications);
+router.put('/applications/:userId/:decision', authenticateUser, authorizeRoles('Admin'), reviewPartnerApplication);
+
+router.post('/hotels', authenticateUser, authorizeRoles('Partner', 'Admin'), createHotel);
+router.get('/hotels', authenticateUser, authorizeRoles('Partner', 'Admin'), getMyHotels);
+router.post('/hotels/:hotelId/rooms', authenticateUser, authorizeRoles('Partner', 'Admin'), createRoomType);
+router.put('/inventory/:inventoryId', authenticateUser, authorizeRoles('Partner', 'Admin'), updateInventory);
 
 module.exports = router;

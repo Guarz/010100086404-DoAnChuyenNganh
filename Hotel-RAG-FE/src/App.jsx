@@ -18,7 +18,9 @@ import AdminDashboard from "./pages/AdminDashboard"; // <- MỚI
 import ProtectedRoute from "./components/ProtectedRoute"; // <- MỚI
 
 export default function App() {
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(() => {
+  return !!localStorage.getItem("nestly_token"); 
+});
   const handleLogout = () => {
     localStorage.removeItem("nestly_token");
     localStorage.removeItem("nestly_user");

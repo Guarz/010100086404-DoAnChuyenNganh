@@ -76,9 +76,8 @@ export default function Header({ loggedIn, onLogout }) {
                     <button onClick={() => handleNavigate("/profile")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="users" size={18} /> Thông tin cá nhân</button>
                   </div>
                   <div className="p-2">
-                    <button onClick={() => handleNavigate("/partner-apply")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="home" size={18} /> Làm shop</button>
                     <button onClick={() => handleNavigate("/partner")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="bed" size={18} /> Trung tâm đối tác</button>
-                    <button onClick={() => handleNavigate("/admin")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="shield" size={18} /> Khu vực quản trị</button>
+                    <button onClick={() => handleNavigate("/admin")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="shield" size={18} /> Trung tâm quản trị</button>
                   </div>
                   <div className="border-t border-slate-100 p-2"><button onClick={handleLogout} className="w-full rounded-xl px-3 py-3 text-left text-sm font-semibold text-red-600 hover:bg-red-50">Đăng xuất</button></div>
                 </>

@@ -68,7 +68,11 @@ export default function HotelDetail() {
         checkInDate,
         checkOutDate,
         bookingDetails: [
-          { roomTypeId: selectedRoom._id, quantity: Number(roomQuantity) },
+          {
+            roomTypeId: selectedRoom._id,
+            quantity: Number(roomQuantity),
+            priceAtBooking: selectedRoom.basePrice,
+          },
         ],
         specialRequests,
       });
@@ -77,7 +81,9 @@ export default function HotelDetail() {
         id: response.data.data._id,
         amount: response.data.data.totalAmount,
       });
-      setBookingSuccess("Đơn đã được tạo. Hoàn tất thanh toán demo để xác nhận.");
+      setBookingSuccess(
+        "Đơn đã được tạo. Hoàn tất thanh toán demo để xác nhận.",
+      );
       setBookingRoomId("");
       setSpecialRequests("");
     } catch (error) {
@@ -96,9 +102,7 @@ export default function HotelDetail() {
     setPaymentLoading(true);
     setPaymentError("");
     try {
-      const response = await API.post(
-        `/payments/demo/${pendingPayment.id}`,
-      );
+      const response = await API.post(`/payments/demo/${pendingPayment.id}`);
       setBookingSuccess(response.data.message);
       setPendingPayment(null);
     } catch (error) {
@@ -316,7 +320,10 @@ export default function HotelDetail() {
                   {pendingPayment.amount.toLocaleString("vi-VN")}₫
                 </p>
                 {paymentError && (
-                  <p role="alert" className="mt-3 text-sm font-semibold text-red-600">
+                  <p
+                    role="alert"
+                    className="mt-3 text-sm font-semibold text-red-600"
+                  >
                     {paymentError}
                   </p>
                 )}
@@ -479,15 +486,25 @@ export default function HotelDetail() {
                           {bookingError}
                         </p>
                       )}
-                      <button
-                        type="submit"
-                        disabled={bookingLoading}
-                        className="rounded-xl bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
-                      >
-                        {bookingLoading
-                          ? "Đang gửi yêu cầu..."
-                          : "Xác nhận đặt phòng"}
-                      </button>
+                      <div className="sm:col-span-2 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setBookingRoomId("")} // Đóng form
+                          className="rounded-xl px-6 py-3 font-bold text-stone-500 transition hover:bg-stone-100"
+                        >
+                          Hủy
+                        </button>
+
+                        <button
+                          type="submit"
+                          disabled={bookingLoading}
+                          className="flex-1 rounded-xl bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {bookingLoading
+                            ? "Đang gửi yêu cầu..."
+                            : "Xác nhận đặt phòng"}
+                        </button>
+                      </div>
                     </form>
                   )}
                 </aside>

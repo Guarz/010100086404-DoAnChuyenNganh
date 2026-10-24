@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-module.exports = async (req, res, next) => {
+// 1. Hàm kiểm tra đăng nhập (Xác thực Token)
+const authenticateUser = async (req, res, next) => {
   const authorization = req.get('authorization');
   const [scheme, token, ...extraParts] = authorization ? authorization.split(' ') : [];
 
@@ -21,12 +22,7 @@ module.exports = async (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn' });
   }
 
-  if (
-    !payload ||
-    typeof payload !== 'object' ||
-    typeof payload.id !== 'string' ||
-    !/^[a-f\d]{24}$/i.test(payload.id)
-  ) {
+  if (!payload || typeof payload !== 'object' || typeof payload.id !== 'string' || !/^[a-f\d]{24}$/i.test(payload.id)) {
     return res.status(401).json({ success: false, message: 'Phiên đăng nhập không hợp lệ' });
   }
 
@@ -43,3 +39,14 @@ module.exports = async (req, res, next) => {
     return res.status(500).json({ success: false, message: 'Không thể xác thực tài khoản lúc này' });
   }
 };
+
+// 2. Hàm kiểm tra quyền hạn (Phân quyền Role)
+const authorizeRoles = (...allowedRoles) => (req, res, next) => {
+  if (!req.user || !allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện thao tác này' });
+  }
+  return next();
+};
+
+// Xuất cả 2 hàm ra để sử dụng
+module.exports = { authenticateUser, authorizeRoles };

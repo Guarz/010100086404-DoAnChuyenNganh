@@ -15,6 +15,7 @@ export default function AuthPage({ mode = "login", onSuccess }) {
 
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -50,8 +51,16 @@ export default function AuthPage({ mode = "login", onSuccess }) {
         // GỌI API ĐĂNG KÝ
         const res = await API.post("/auth/register", formData);
         if (res.data.success) {
-          alert("Đăng ký thành công! Hãy đăng nhập lại.");
-          navigate("/login");
+          setSuccessMsg(
+            "Tạo tài khoản thành công! Đang chuyển đến Đăng nhập...",
+          );
+
+          // 3. Đợi 2 giây rồi mới tự động chuyển hướng sang /login
+          setTimeout(() => {
+            navigate("/login");
+            setSuccessMsg(""); // Xóa thông báo đi
+            setFormData({ fullName: "", email: "", password: "" }); // Làm sạch form
+          }, 2000);
         }
       }
     } catch (error) {
@@ -132,7 +141,24 @@ export default function AuthPage({ mode = "login", onSuccess }) {
             {errorMsg && (
               <p className="text-sm font-bold text-red-500">{errorMsg}</p>
             )}
-
+            {successMsg && (
+              <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700 shadow-sm">
+                <svg
+                  className="size-5 shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2.5}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                {successMsg}
+              </div>
+            )}
             {!isLogin && (
               <label className="block text-sm font-bold text-slate-700">
                 Họ và tên

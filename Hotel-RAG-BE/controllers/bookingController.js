@@ -144,7 +144,7 @@ exports.getMyBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ customerId: req.user.id })
       .sort({ createdAt: -1 })
-      .populate('hotelId', 'hotelName address')
+      .populate('hotelId', 'hotelName address images')
       .populate('bookingDetails.roomTypeId', 'title');
 
     const payments = await Payment.find({

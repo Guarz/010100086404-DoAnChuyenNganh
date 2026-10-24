@@ -270,3 +270,14 @@ exports.updateInventory = async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi server khi cập nhật quỹ phòng' });
   }
 };
+exports.getMyHotels = async (req, res) => {
+  try {
+    // Tìm các KS có partnerId khớp với ID của user đang đăng nhập
+    const hotels = await Hotel.find({ partnerId: req.user.id }).sort({ createdAt: -1 });
+    
+    return res.status(200).json({ success: true, data: hotels });
+  } catch (error) {
+    console.error("Lỗi lấy danh sách khách sạn của Partner:", error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+};
