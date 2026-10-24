@@ -23,6 +23,17 @@ export default function PartnerDashboard() {
     amenities: "",
     images: "",
   });
+  const [pricingModal, setPricingModal] = useState(null);
+  const [hotelRooms, setHotelRooms] = useState([]);
+  const [pricingForm, setPricingForm] = useState({
+    roomTypeId: "",
+    startDate: "",
+    endDate: "",
+    newPrice: "",
+    newQuantity: "",
+  });
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingSuccess, setPricingSuccess] = useState("");
 
   // Lấy thông tin user từ LocalStorage để chào đúng tên
   const user = JSON.parse(localStorage.getItem("nestly_user") || "{}");
@@ -106,7 +117,64 @@ export default function PartnerDashboard() {
       setRoomLoading(false);
     }
   };
-  // ====================================
+  const openPricingModal = async (hotel) => {
+    setPricingModal(hotel);
+    setPricingSuccess("");
+    try {
+      // TÌM DÒNG NÀY TRONG HÀM openPricingModal:
+      const response = await API.get(`/hotels/${hotel._id}/rooms?showAll=true`);
+      if (response.data.success) {
+        setHotelRooms(response.data.data);
+        if (response.data.data.length > 0) {
+          setPricingForm((prev) => ({
+            ...prev,
+            roomTypeId: response.data.data[0]._id,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Lỗi tải danh sách phòng:", error);
+    }
+  };
+
+  const handleUpdatePricing = async (e) => {
+    e.preventDefault();
+    setPricingLoading(true);
+    try {
+      const response = await API.put("/partner/inventory", pricingForm);
+      if (response.data.success) {
+        setPricingSuccess(response.data.message);
+        setTimeout(() => setPricingModal(null), 3000);
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || "Có lỗi xảy ra");
+    } finally {
+      setPricingLoading(false);
+    }
+  };
+  const handleToggleRoom = async () => {
+    if (!pricingForm.roomTypeId) return;
+    try {
+      const response = await API.put(
+        `/partner/rooms/${pricingForm.roomTypeId}/toggle`,
+      );
+      if (response.data.success) {
+        // Cập nhật lại UI lập tức
+        setHotelRooms((prev) =>
+          prev.map((r) =>
+            r._id === pricingForm.roomTypeId
+              ? { ...r, isActive: response.data.isActive }
+              : r,
+          ),
+        );
+        alert(response.data.message);
+      }
+    } catch (error) {
+      alert(
+        error.response?.data?.message || "Lỗi khi cập nhật trạng thái phòng",
+      );
+    }
+  };
 
   useEffect(() => {
     const fetchHotels = async () => {
@@ -173,7 +241,27 @@ export default function PartnerDashboard() {
       setCreateLoading(false);
     }
   };
+  const [inventoryCheck, setInventoryCheck] = useState(null);
 
+  const handleCheckInventory = async () => {
+    if (
+      !pricingForm.roomTypeId ||
+      !pricingForm.startDate ||
+      !pricingForm.endDate
+    ) {
+      return alert(
+        "Vui lòng chọn Hạng phòng và khoảng Thời gian trước khi kiểm tra!",
+      );
+    }
+    try {
+      const response = await API.get(
+        `/partner/inventory/check/${pricingForm.roomTypeId}?startDate=${pricingForm.startDate}&endDate=${pricingForm.endDate}`,
+      );
+      if (response.data.success) setInventoryCheck(response.data.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
   return (
     <main className="min-h-screen bg-[#f7f5ef]">
       <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
@@ -366,12 +454,20 @@ export default function PartnerDashboard() {
                     </p>
                   </div>
                   {hotel.status === "Approved" && (
-                    <button
-                      onClick={() => setManagingHotel(hotel)}
-                      className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold transition hover:bg-stone-50"
-                    >
-                      Quản lý phòng
-                    </button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        onClick={() => setManagingHotel(hotel)}
+                        className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold transition hover:bg-stone-50"
+                      >
+                        + Thêm Hạng phòng
+                      </button>
+                      <button
+                        onClick={() => openPricingModal(hotel)}
+                        className="rounded-full bg-[#173b31] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#245a4b]"
+                      >
+                        Chỉnh Giá / Quỹ phòng
+                      </button>
+                    </div>
                   )}
                 </div>
               ))
@@ -518,6 +614,196 @@ export default function PartnerDashboard() {
                   className="rounded-xl bg-[#173b31] px-8 py-3.5 font-bold text-white transition hover:bg-[#245a4b] disabled:opacity-60"
                 >
                   {roomLoading ? "Đang tạo..." : "Lưu Hạng phòng"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {pricingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-7 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-5">
+              <h2 className="text-2xl font-bold text-[#173b31]">
+                Cập nhật Giá & Quỹ phòng
+              </h2>
+              <button
+                onClick={() => setPricingModal(null)}
+                className="grid size-10 place-items-center rounded-full bg-stone-100 font-bold hover:bg-stone-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            {pricingSuccess && (
+              <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
+                {pricingSuccess}
+              </div>
+            )}
+
+            <form
+              onSubmit={handleUpdatePricing}
+              className="mt-6 grid gap-5 sm:grid-cols-2"
+            >
+              <label className="sm:col-span-2 block text-sm font-bold text-stone-700">
+                Chọn Hạng phòng muốn cập nhật
+                <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+                  <div className="relative flex-1">
+                    <select
+                      value={pricingForm.roomTypeId}
+                      onChange={(e) =>
+                        setPricingForm({
+                          ...pricingForm,
+                          roomTypeId: e.target.value,
+                        })
+                      }
+                      className="h-12 w-full rounded-xl border border-stone-200 bg-white px-4 font-semibold text-stone-700 outline-none transition focus:border-[#173b31] focus:ring-1 focus:ring-[#173b31]"
+                      required
+                    >
+                      {hotelRooms.map((room) => (
+                        <option key={room._id} value={room._id}>
+                          {room.isActive === false ? "[BẢO TRÌ] " : ""}
+                          {room.title} (Giá: {room.basePrice.toLocaleString()}đ)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* NÚT BẬT/TẮT */}
+                  <button
+                    type="button"
+                    onClick={handleToggleRoom}
+                    className={`flex h-12 w-full sm:w-[160px] items-center justify-center gap-2 rounded-xl px-5 font-bold text-white shadow-sm transition ${
+                      hotelRooms.find((r) => r._id === pricingForm.roomTypeId)
+                        ?.isActive === false
+                        ? "bg-emerald-600 hover:bg-emerald-700 hover:shadow-md"
+                        : "bg-rose-600 hover:bg-rose-700 hover:shadow-md"
+                    }`}
+                  >
+                    {hotelRooms.find((r) => r._id === pricingForm.roomTypeId)
+                      ?.isActive === false ? (
+                      <>
+                        <i className="fa-solid fa-unlock-keyhole"></i> Mở bán
+                        lại
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-lock"></i> Khóa bảo trì
+                      </>
+                    )}
+                  </button>
+                </div>
+              </label>
+
+              <label className="block text-sm font-bold text-stone-700">
+                Áp dụng Từ ngày{" "}
+                <input
+                  type="date"
+                  value={pricingForm.startDate}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      startDate: e.target.value,
+                    })
+                  }
+                  className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                  required
+                />
+              </label>
+              <label className="block text-sm font-bold text-stone-700">
+                Đến hết ngày{" "}
+                <input
+                  type="date"
+                  value={pricingForm.endDate}
+                  onChange={(e) =>
+                    setPricingForm({ ...pricingForm, endDate: e.target.value })
+                  }
+                  className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                  required
+                />
+              </label>
+
+              <label className="block text-sm font-bold text-stone-700 text-[#b7812d]">
+                Giá mới (VNĐ){" "}
+                <input
+                  type="number"
+                  value={pricingForm.newPrice}
+                  onChange={(e) =>
+                    setPricingForm({ ...pricingForm, newPrice: e.target.value })
+                  }
+                  placeholder="Bỏ trống nếu giữ nguyên"
+                  className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                />
+              </label>
+              <label className="block text-sm font-bold text-stone-700">
+                Số phòng trống mới{" "}
+                <input
+                  type="number"
+                  value={pricingForm.newQuantity}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      newQuantity: e.target.value,
+                    })
+                  }
+                  placeholder="Bỏ trống nếu giữ nguyên"
+                  className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                />
+              </label>
+
+              {/* KHỐI KIỂM TRA QUỸ PHÒNG TRƯỚC KHI LƯU */}
+              <div className="sm:col-span-2 mt-2 rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-bold text-stone-700">
+                    Tình trạng quỹ phòng hiện tại
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCheckInventory}
+                    className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-[#b7812d] shadow-sm border border-stone-200 hover:bg-stone-100 transition"
+                  >
+                    <i className="fa-solid fa-magnifying-glass mr-1"></i> Kiểm
+                    tra
+                  </button>
+                </div>
+
+                {inventoryCheck && (
+                  <div className="mt-4 max-h-40 overflow-y-auto rounded-xl bg-white border border-stone-200 p-2 text-sm shadow-inner">
+                    {inventoryCheck.length === 0 ? (
+                      <p className="text-stone-500 italic p-3 text-center">
+                        Chưa có dữ liệu quỹ phòng trong giai đoạn này.
+                      </p>
+                    ) : (
+                      inventoryCheck.map((inv) => (
+                        <div
+                          key={inv._id}
+                          className="flex justify-between border-b border-stone-100 p-3 last:border-0 font-semibold text-stone-600"
+                        >
+                          <span>
+                            <i className="fa-regular fa-calendar mr-2 text-stone-400"></i>
+                            {new Date(inv.date).toLocaleDateString("vi-VN")}
+                          </span>
+                          <span>
+                            Còn {inv.availableRooms} phòng{" "}
+                            <span className="mx-2 text-stone-300">|</span>{" "}
+                            <span className="text-[#b7812d]">
+                              {inv.dynamicPrice.toLocaleString()}đ
+                            </span>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="sm:col-span-2 mt-2">
+                <button
+                  type="submit"
+                  disabled={pricingLoading}
+                  className="w-full rounded-xl bg-[#173b31] py-3.5 font-bold text-white transition hover:bg-[#245a4b] disabled:opacity-60"
+                >
+                  {pricingLoading ? "Đang xử lý..." : "Lưu thay đổi"}
                 </button>
               </div>
             </form>

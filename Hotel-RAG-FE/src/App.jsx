@@ -17,10 +17,11 @@ import PartnerDashboard from "./pages/PartnerDashboard"; // <- MỚI
 import AdminDashboard from "./pages/AdminDashboard"; // <- MỚI
 import ProtectedRoute from "./components/ProtectedRoute"; // <- MỚI
 
+
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(() => {
-  return !!localStorage.getItem("nestly_token"); 
-});
+    return !!localStorage.getItem("nestly_token");
+  });
   const handleLogout = () => {
     localStorage.removeItem("nestly_token");
     localStorage.removeItem("nestly_user");
@@ -37,7 +38,6 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/hotels" element={<Hotels />} />
             <Route path="/hotels/:id" element={<HotelDetail />} />
-
             <Route
               path="/login"
               element={
@@ -50,7 +50,6 @@ export default function App() {
                 <AuthPage mode="register" onSuccess={() => setLoggedIn(true)} />
               }
             />
-
             <Route
               path="/profile"
               element={
@@ -59,7 +58,8 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-
+            <Route element="{<Checkout" path="/checkout/:id" />{" "}
+            <Route element="{<VNPayReturn" path="/payment/vnpay-return" />
             {/* Bất kỳ ai đăng nhập cũng có thể gửi đơn xin làm đối tác */}
             <Route
               path="/partner-apply"
@@ -69,7 +69,6 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-
             {/* CHỈ PARTNER (hoặc Admin) mới vào được màn hình quản lý khách sạn */}
             <Route
               path="/partner"
@@ -79,7 +78,6 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-
             {/* CHỈ ADMIN MỚI VÀO ĐƯỢC KHU VỰC DUYỆT */}
             <Route
               path="/admin"

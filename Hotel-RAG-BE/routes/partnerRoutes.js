@@ -11,7 +11,9 @@ const {
   getApplicationStatus,
   getPendingPartnerApplications,
   reviewPartnerApplication,
-  getMyHotels
+  getMyHotels,
+  toggleRoomStatus,
+  checkInventory
 } = require('../controllers/partnerController');
 
 // Import đúng tên 2 hàm từ Middleware
@@ -25,6 +27,9 @@ router.put('/applications/:userId/:decision', authenticateUser, authorizeRoles('
 router.post('/hotels', authenticateUser, authorizeRoles('Partner', 'Admin'), createHotel);
 router.get('/hotels', authenticateUser, authorizeRoles('Partner', 'Admin'), getMyHotels);
 router.post('/hotels/:hotelId/rooms', authenticateUser, authorizeRoles('Partner', 'Admin'), createRoomType);
-router.put('/inventory/:inventoryId', authenticateUser, authorizeRoles('Partner', 'Admin'), updateInventory);
+router.put('/rooms/:roomId/toggle', authenticateUser, toggleRoomStatus);
+
+router.put('/inventory', authenticateUser, authorizeRoles('Partner', 'Admin'), updateInventory);
+router.get('/inventory/check/:roomId', authenticateUser, checkInventory);
 
 module.exports = router;

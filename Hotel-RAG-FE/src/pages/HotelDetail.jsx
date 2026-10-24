@@ -1,7 +1,7 @@
 // File: src/pages/HotelDetail.jsx
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom"; // Thêm useParams
-import Icon from "../components/Icon"; // Chỉnh lại đường dẫn cho đúng nha
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import Icon from "../components/Icon";
 import API from "../services/api";
 
 const photos = {
@@ -17,21 +17,34 @@ const toDateInputValue = (date) => {
 
 export default function HotelDetail() {
   const navigate = useNavigate();
-  const { id } = useParams(); // LẤY ID TỪ URL
-  const [rooms, setRooms] = useState([]); // STATE LƯU HẠNG PHÒNG
+  const { id } = useParams();
+  const location = useLocation(); // Hook lấy query params từ URL
+
+  // Trích xuất dữ liệu từ thanh tìm kiếm (nếu có)
+  const queryParams = new URLSearchParams(location.search);
+  const searchCheckIn = queryParams.get("checkIn");
+  const searchCheckOut = queryParams.get("checkOut");
+  const searchRooms = queryParams.get("rooms");
+
+  const [rooms, setRooms] = useState([]);
   const [hotel, setHotel] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Form Đặt phòng tự động lấy dữ liệu từ URL hoặc gán mặc định
   const [bookingRoomId, setBookingRoomId] = useState("");
-  const [checkInDate, setCheckInDate] = useState(() =>
-    toDateInputValue(new Date()),
+  const [checkInDate, setCheckInDate] = useState(
+    () => searchCheckIn || toDateInputValue(new Date()),
   );
   const [checkOutDate, setCheckOutDate] = useState(() => {
+    if (searchCheckOut) return searchCheckOut;
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     return toDateInputValue(tomorrow);
   });
-  const [roomQuantity, setRoomQuantity] = useState(1);
+  const [roomQuantity, setRoomQuantity] = useState(searchRooms || 1);
   const [specialRequests, setSpecialRequests] = useState("");
+
+  // State xử lý trạng thái
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [bookingSuccess, setBookingSuccess] = useState("");
@@ -68,24 +81,21 @@ export default function HotelDetail() {
         checkInDate,
         checkOutDate,
         bookingDetails: [
-          {
-            roomTypeId: selectedRoom._id,
-            quantity: Number(roomQuantity),
-            priceAtBooking: selectedRoom.basePrice,
-          },
+          { roomTypeId: selectedRoom._id, quantity: Number(roomQuantity) },
         ],
         specialRequests,
       });
+      // Tạo đơn thành công -> Đẩy khách thẳng sang trang Checkout chuyên dụng
+      navigate(`/checkout/${response.data.data._id}`);
 
       setPendingPayment({
         id: response.data.data._id,
         amount: response.data.data.totalAmount,
       });
       setBookingSuccess(
-        "Đơn đã được tạo. Hoàn tất thanh toán demo để xác nhận.",
+        "Đơn đã được tạo. Vui lòng hoàn tất thanh toán để giữ phòng.",
       );
       setBookingRoomId("");
-      setSpecialRequests("");
     } catch (error) {
       setBookingError(
         error.response?.data?.message ||
@@ -98,17 +108,18 @@ export default function HotelDetail() {
 
   const handleDemoPayment = async () => {
     if (!pendingPayment || paymentLoading) return;
-
     setPaymentLoading(true);
     setPaymentError("");
     try {
-      const response = await API.post(`/payments/demo/${pendingPayment.id}`);
-      setBookingSuccess(response.data.message);
+      await API.post(`/payments/demo/${pendingPayment.id}`);
+      setBookingSuccess("Thanh toán thành công! Đang chuyển hướng...");
       setPendingPayment(null);
+      // Chuyển hướng sang trang Profile sau khi thanh toán thành công
+      setTimeout(() => navigate("/profile"), 1500);
     } catch (error) {
       setPaymentError(
         error.response?.data?.message ||
-          "Không thể xử lý thanh toán demo. Vui lòng thử lại.",
+          "Không thể xử lý thanh toán. Vui lòng thử lại.",
       );
     } finally {
       setPaymentLoading(false);
@@ -116,34 +127,33 @@ export default function HotelDetail() {
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Chạy song song 2 request cho nhanh
-        const [hotelRes, roomsRes] = await Promise.all([
-          API.get(`/hotels/${id}`),
-          API.get(`/hotels/${id}/rooms`),
-        ]);
-
-        if (hotelRes.data.success) setHotel(hotelRes.data.data);
-        if (roomsRes.data.success) setRooms(roomsRes.data.data);
-      } catch (error) {
-        console.error("Lỗi tải dữ liệu:", error);
-      } finally {
+    API.get(`/hotels/${id}`)
+      .then((res) => {
+        if (res.data.success) setHotel(res.data.data);
         setLoading(false);
-      }
-    };
-    fetchData();
+      })
+      .catch((err) => console.error(err));
   }, [id]);
 
-  if (loading) {
+  // 2. Tải danh sách Hạng phòng (Tự động chạy lại khi khách đổi Ngày Nhận/Trả)
+  useEffect(() => {
+    if (!checkInDate || !checkOutDate) return;
+    API.get(
+      `/hotels/${id}/rooms?checkIn=${checkInDate}&checkOut=${checkOutDate}`,
+    )
+      .then((res) => {
+        if (res.data.success) setRooms(res.data.data);
+      })
+      .catch((err) => console.error(err));
+  }, [id, checkInDate, checkOutDate]);
+
+  if (loading)
     return (
       <div className="flex min-h-screen items-center justify-center font-bold text-[#173b31]">
         Đang tải dữ liệu khách sạn...
       </div>
     );
-  }
-
-  if (!hotel) {
+  if (!hotel)
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
         <h2 className="text-2xl font-bold text-stone-700">
@@ -157,22 +167,20 @@ export default function HotelDetail() {
         </button>
       </div>
     );
-  }
 
   return (
     <main className="bg-[#fffdf9]">
       <div className="mx-auto max-w-7xl px-5 pb-24 pt-8 lg:px-8">
         <button
-          onClick={() => navigate("/hotels")}
+          onClick={() => navigate(-1)} // Quay lại trang trước kèm bộ lọc URL
           className="mb-7 flex items-center gap-2 text-sm font-bold text-stone-500 transition hover:text-[#173b31]"
         >
-          ← Quay lại kết quả tìm kiếm
+          ← Quay lại
         </button>
 
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <div className="flex items-center gap-2 text-sm font-bold text-[#d09b42]">
-              {/* Tạm thời hiển thị 5 sao cứng */}
               ★★★★★ <span className="text-stone-400">Nestly Tuyển chọn</span>
             </div>
             <h1 className="font-display mt-2 text-4xl font-semibold text-[#173b31] sm:text-5xl">
@@ -183,17 +191,9 @@ export default function HotelDetail() {
               {hotel.address?.city}, {hotel.address?.province}
             </p>
           </div>
-          <div className="flex gap-2">
-            <button className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold transition hover:bg-stone-50">
-              Chia sẻ
-            </button>
-            <button className="flex items-center gap-2 rounded-full border border-stone-200 px-4 py-2 text-sm font-bold transition hover:bg-stone-50">
-              <Icon name="heart" size={16} /> Lưu
-            </button>
-          </div>
         </div>
 
-        {/* BỘ SƯU TẬP ẢNH THẬT TỪ DATABASE */}
+        {/* THƯ VIỆN ẢNH */}
         <section className="mt-8 grid h-[520px] grid-cols-4 grid-rows-2 gap-3 overflow-hidden rounded-2xl">
           <img
             src={hotel.images?.[0] || photos.hero}
@@ -237,24 +237,20 @@ export default function HotelDetail() {
         </section>
 
         <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_380px]">
+          {/* CỘT TRÁI: THÔNG TIN KS */}
           <div>
             <div className="flex items-start justify-between border-b border-stone-200 pb-8">
-              <div>
-                <h2 className="font-display text-3xl font-semibold text-[#173b31]">
-                  Giới thiệu về chỗ nghỉ
-                </h2>
-              </div>
+              <h2 className="font-display text-3xl font-semibold text-[#173b31]">
+                Giới thiệu về chỗ nghỉ
+              </h2>
               <span className="grid size-12 place-items-center rounded-full bg-[#e8f2ed] text-[#173b31]">
                 <Icon name="sparkle" />
               </span>
             </div>
-
-            {/* MÔ TẢ TỪ DATABASE */}
             <p className="border-b border-stone-200 py-8 leading-8 text-stone-600 whitespace-pre-line">
               {hotel.description}
             </p>
 
-            {/* TIỆN ÍCH TỪ DATABASE */}
             <div className="border-b border-stone-200 py-8">
               <h2 className="font-display text-2xl font-semibold text-[#173b31]">
                 Nơi này có gì
@@ -279,25 +275,9 @@ export default function HotelDetail() {
                 )}
               </div>
             </div>
-
-            <div className="py-8">
-              <h2 className="font-display text-2xl font-semibold text-[#173b31]">
-                Đánh giá từ khách
-              </h2>
-              <div className="mt-5 flex items-center gap-4">
-                <span className="grid size-14 place-items-center rounded-xl bg-[#173b31] font-display text-xl text-white">
-                  {hotel.rating || "4.5"}
-                </span>
-                <div>
-                  <p className="font-bold">Tuyệt vời</p>
-                  <p className="mt-1 text-sm text-stone-500">
-                    Dựa trên dữ liệu hệ thống
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
 
+          {/* CỘT PHẢI: CHỌN PHÒNG & ĐẶT */}
           <div className="flex flex-col gap-6">
             <h2 className="font-display text-2xl font-semibold text-[#173b31]">
               Chọn phòng của bạn
@@ -309,12 +289,12 @@ export default function HotelDetail() {
               </p>
             )}
 
+            {/* BOX THANH TOÁN */}
             {pendingPayment && (
               <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                <h3 className="font-bold text-[#173b31]">Thanh toán demo</h3>
+                <h3 className="font-bold text-[#173b31]">Thanh toán</h3>
                 <p className="mt-2 text-sm text-stone-600">
-                  Đây là mô phỏng để thử luồng thanh toán, không thu tiền thật
-                  và không yêu cầu nhập thông tin thẻ.
+                  Xác nhận thanh toán mô phỏng để giữ phòng.
                 </p>
                 <p className="mt-4 text-lg font-extrabold text-[#173b31]">
                   {pendingPayment.amount.toLocaleString("vi-VN")}₫
@@ -331,11 +311,9 @@ export default function HotelDetail() {
                   type="button"
                   onClick={handleDemoPayment}
                   disabled={paymentLoading}
-                  className="mt-4 w-full rounded-xl bg-[#173b31] px-5 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-4 w-full rounded-xl bg-[#173b31] px-5 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:opacity-60"
                 >
-                  {paymentLoading
-                    ? "Đang xử lý..."
-                    : "Mô phỏng thanh toán thành công"}
+                  {paymentLoading ? "Đang xử lý..." : "Mô phỏng thanh toán"}
                 </button>
               </section>
             )}
@@ -350,62 +328,46 @@ export default function HotelDetail() {
                   key={room._id}
                   className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm hover:shadow-md transition"
                 >
-                  <div className="flex flex-col sm:flex-row gap-5">
-                    {/* Ảnh phòng (nếu có) */}
-                    <div className="sm:w-1/3 aspect-[4/3] rounded-xl overflow-hidden bg-stone-100 shrink-0">
+                  <div className="flex flex-col gap-4">
+                    <div className="aspect-[16/9] w-full rounded-xl overflow-hidden bg-stone-100 shrink-0">
                       <img
                         src={
                           room.images?.[0] ||
                           "https://images.unsplash.com/photo-1569335468885-d7d1a41e570c?w=600"
                         }
                         alt={room.title}
-                        className="w-full h-full object-cover"
+                        className="size-full object-cover"
                       />
                     </div>
 
-                    {/* Thông tin phòng */}
-                    <div className="flex flex-col justify-between flex-1">
-                      <div>
-                        <h3 className="text-xl font-bold text-[#173b31]">
-                          {room.title}
-                        </h3>
-                        <p className="text-sm text-stone-500 mt-1">
-                          {room.description}
-                        </p>
-
-                        {/* Tiện ích phòng */}
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          <span className="text-xs font-semibold bg-stone-100 px-2 py-1 rounded">
-                            <Icon
-                              name="users"
-                              size={12}
-                              className="inline mr-1"
-                            />
-                            Tối đa {room.maxAdults} người lớn,{" "}
-                            {room.maxChildren} trẻ em
-                          </span>
-                          {room.amenities?.slice(0, 3).map((amenity, idx) => (
-                            <span
-                              key={idx}
-                              className="text-xs font-semibold bg-stone-100 px-2 py-1 rounded text-stone-600"
-                            >
-                              {amenity}
-                            </span>
-                          ))}
-                        </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-[#173b31]">
+                        {room.title}
+                      </h3>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <span className="text-xs font-semibold bg-stone-100 px-2 py-1 rounded">
+                          Tối đa {room.maxAdults} NL, {room.maxChildren} TE
+                        </span>
                       </div>
 
-                      {/* Giá và Nút Đặt */}
                       <div className="flex flex-wrap items-end justify-between mt-5 pt-5 border-t border-stone-100 gap-4">
                         <div>
                           <p className="text-xs text-stone-400">
-                            Giá phòng mỗi đêm
+                            Giá phòng tham khảo/đêm
                           </p>
                           <p>
                             <strong className="text-2xl text-[#b7812d]">
-                              {room.basePrice?.toLocaleString("vi-VN")}₫
+                              {(
+                                room.dynamicPrice || room.basePrice
+                              ).toLocaleString("vi-VN")}
+                              ₫
                             </strong>
                           </p>
+                          {room.availableRooms !== undefined && (
+                            <p className="mt-1 text-xs font-bold text-red-500">
+                              Chỉ còn {room.availableRooms} phòng
+                            </p>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -413,8 +375,9 @@ export default function HotelDetail() {
                             setBookingRoomId(room._id);
                             setBookingError("");
                             setBookingSuccess("");
+                            setPendingPayment(null);
                           }}
-                          className="rounded-xl bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b]"
+                          className={`rounded-xl px-6 py-3 font-bold transition ${bookingRoomId === room._id ? "bg-[#b7812d] text-white" : "bg-[#173b31] text-white hover:bg-[#245a4b]"}`}
                         >
                           {bookingRoomId === room._id
                             ? "Đang chọn"
@@ -424,85 +387,76 @@ export default function HotelDetail() {
                     </div>
                   </div>
 
-                  {bookingRoomId === room._id && (
+                  {/* FORM NHẬP THÔNG TIN (Mở ra khi bấm Chọn phòng) */}
+                  {bookingRoomId === room._id && !pendingPayment && (
                     <form
                       onSubmit={handleBooking}
                       className="mt-6 grid gap-4 border-t border-stone-100 pt-6 sm:grid-cols-2"
                     >
                       <label className="text-sm font-semibold text-stone-700">
-                        Ngày nhận phòng
+                        Ngày nhận phòng{" "}
                         <input
                           type="date"
                           required
                           min={toDateInputValue(new Date())}
                           value={checkInDate}
-                          onChange={(event) =>
-                            setCheckInDate(event.target.value)
-                          }
+                          onChange={(e) => setCheckInDate(e.target.value)}
                           className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
                         />
                       </label>
                       <label className="text-sm font-semibold text-stone-700">
-                        Ngày trả phòng
+                        Ngày trả phòng{" "}
                         <input
                           type="date"
                           required
                           min={checkInDate}
                           value={checkOutDate}
-                          onChange={(event) =>
-                            setCheckOutDate(event.target.value)
-                          }
+                          onChange={(e) => setCheckOutDate(e.target.value)}
                           className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
                         />
                       </label>
                       <label className="text-sm font-semibold text-stone-700">
-                        Số phòng
+                        Số phòng{" "}
                         <input
                           type="number"
                           required
                           min="1"
                           step="1"
                           value={roomQuantity}
-                          onChange={(event) =>
-                            setRoomQuantity(event.target.value)
-                          }
+                          onChange={(e) => setRoomQuantity(e.target.value)}
                           className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
                         />
                       </label>
                       <label className="text-sm font-semibold text-stone-700 sm:col-span-2">
-                        Yêu cầu đặc biệt (không bắt buộc)
+                        Yêu cầu đặc biệt{" "}
                         <textarea
                           value={specialRequests}
-                          onChange={(event) =>
-                            setSpecialRequests(event.target.value)
-                          }
-                          rows="3"
-                          maxLength="500"
+                          onChange={(e) => setSpecialRequests(e.target.value)}
+                          rows="2"
                           className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
                         />
                       </label>
+
                       {bookingError && (
                         <p className="text-sm font-semibold text-red-600 sm:col-span-2">
                           {bookingError}
                         </p>
                       )}
+
                       <div className="sm:col-span-2 flex items-center gap-3">
                         <button
                           type="button"
-                          onClick={() => setBookingRoomId("")} // Đóng form
+                          onClick={() => setBookingRoomId("")}
                           className="rounded-xl px-6 py-3 font-bold text-stone-500 transition hover:bg-stone-100"
                         >
                           Hủy
                         </button>
-
                         <button
                           type="submit"
                           disabled={bookingLoading}
-                          className="flex-1 rounded-xl bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="flex-1 rounded-xl bg-[#173b31] px-6 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:opacity-60"
                         >
-                          {bookingLoading
-                            ? "Đang gửi yêu cầu..."
-                            : "Xác nhận đặt phòng"}
+                          {bookingLoading ? "Đang xử lý..." : "Xác nhận đặt"}
                         </button>
                       </div>
                     </form>

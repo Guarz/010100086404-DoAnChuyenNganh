@@ -10,8 +10,6 @@ export default function ProfilePage({ onLogout }) {
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState("");
-  const [payingBookingId, setPayingBookingId] = useState("");
-  const [paymentError, setPaymentError] = useState("");
   const navigate = useNavigate();
 
   const userStr = localStorage.getItem("nestly_user");
@@ -21,51 +19,37 @@ export default function ProfilePage({ onLogout }) {
     if (!currentUser) navigate("/login");
   }, [currentUser, navigate]);
 
-  // === ĐÃ SỬA LẠI THÀNH /bookings/my-bookings CHUẨN VỚI BACKEND ===
-  useEffect(() => {
-    if (active !== "booking") return undefined;
-
-    let isCurrent = true;
-
-    API.get("/bookings/my-bookings") 
+  const fetchBookings = () => {
+    API.get("/bookings/my-bookings")
       .then((response) => {
-        if (isCurrent) setBookings(response.data.data);
+        setBookings(response.data.data);
       })
       .catch((error) => {
-        if (isCurrent) {
-          setBookingsError(
-            error.response?.data?.message || "Không thể tải lịch sử đặt chỗ. Vui lòng thử lại."
-          );
-        }
+        setBookingsError(error.response?.data?.message || "Không thể tải lịch sử đặt chỗ.");
       })
       .finally(() => {
-        if (isCurrent) setBookingsLoading(false);
+        setBookingsLoading(false);
       });
+  };
 
-    return () => {
-      isCurrent = false;
-    };
+  useEffect(() => {
+    if (active === "booking") {
+      fetchBookings();
+    }
   }, [active]);
 
-  const handleDemoPayment = async (bookingId) => {
-    setPayingBookingId(bookingId);
-    setPaymentError("");
+  // HÀM MỚI: Xử lý Hủy đơn
+  const handleCancelBooking = async (bookingId) => {
+    if (!window.confirm("Bạn có chắc chắn muốn hủy đơn đặt phòng này? (Quỹ phòng sẽ được hoàn lại hệ thống)")) return;
+    
     try {
-      const response = await API.post(`/payments/demo/${bookingId}`);
-      const payment = response.data.data.payment;
-      setBookings((previous) =>
-        previous.map((booking) =>
-          booking._id === bookingId
-            ? { ...booking, bookingStatus: response.data.data.bookingStatus, payment }
-            : booking
-        )
-      );
+      const res = await API.put(`/bookings/${bookingId}/cancel`);
+      if (res.data.success) {
+        alert(res.data.message);
+        fetchBookings(); // Tải lại danh sách sau khi hủy thành công
+      }
     } catch (error) {
-      setPaymentError(
-        error.response?.data?.message || "Không thể xử lý thanh toán demo. Vui lòng thử lại."
-      );
-    } finally {
-      setPayingBookingId("");
+      alert(error.response?.data?.message || "Lỗi khi hủy đơn");
     }
   };
 
@@ -132,7 +116,6 @@ export default function ProfilePage({ onLogout }) {
                   key={item.id}
                   onClick={() => {
                     if (item.id === "booking" && active !== "booking") {
-                      setBookingsLoading(true);
                       setBookingsError("");
                     }
                     setActive(item.id);
@@ -201,21 +184,15 @@ export default function ProfilePage({ onLogout }) {
                   <p className="py-8 text-sm font-bold text-slate-500">Bạn chưa có đơn đặt phòng nào.</p>
                 ) : (
                   <div className="mt-6 space-y-4">
-                    {paymentError && (
-                      <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-                        {paymentError}
-                      </p>
-                    )}
                     {bookings.map((booking) => (
                       <article
                         key={booking._id}
                         className="flex flex-col gap-5 rounded-2xl border border-slate-200 p-5 sm:flex-row"
                       >
-                        {/* === ĐÃ BỔ SUNG ẢNH KHÁCH SẠN VÀO ĐÂY === */}
                         <img 
                           src={booking.hotelId?.images?.[0] || "https://images.unsplash.com/photo-1569335468885-d7d1a41e570c?w=400"} 
                           alt="Khách sạn" 
-                          className="h-40 w-full rounded-xl object-cover sm:h-auto sm:w-48 bg-slate-100" 
+                          className="h-40 w-full rounded-xl object-cover sm:h-auto sm:w-48 bg-slate-100 shrink-0" 
                         />
                         
                         <div className="flex-1 flex flex-col">
@@ -227,15 +204,14 @@ export default function ProfilePage({ onLogout }) {
                               </p>
                             </div>
                             <span className={`rounded-full px-3 py-1 text-xs font-bold ${
-                              booking.bookingStatus === 'Completed' ? 'bg-emerald-50 text-emerald-700' :
-                              booking.bookingStatus === 'Canceled' ? 'bg-red-50 text-red-700' :
+                              booking.bookingStatus === 'Confirmed' ? 'bg-emerald-50 text-emerald-700' :
+                              booking.bookingStatus === 'Cancelled' ? 'bg-red-50 text-red-700' :
                               'bg-amber-50 text-amber-800'
                             }`}>
                               {{
-                                Pending: "Chờ xác nhận",
-                                Confirmed: "Đã xác nhận",
-                                Canceled: "Đã hủy",
-                                Completed: "Hoàn tất",
+                                Pending: "Chờ thanh toán",
+                                Confirmed: "Đã thanh toán",
+                                Cancelled: "Đã hủy"
                               }[booking.bookingStatus] || booking.bookingStatus}
                             </span>
                           </div>
@@ -254,21 +230,25 @@ export default function ProfilePage({ onLogout }) {
                           </div>
 
                           <div className="mt-auto pt-4 flex flex-wrap items-end justify-between gap-3 border-t border-slate-100">
-                            <div>
-                              <p className="text-sm text-slate-600 mb-1">
-                                Thanh toán:{" "}
-                                <strong>
-                                  {booking.payment?.paymentStatus === "Success" ? "Đã thanh toán" : "Chưa thanh toán"}
-                                </strong>
-                              </p>
-                              {booking.bookingStatus === "Pending" && booking.payment?.paymentStatus !== "Success" && (
+                            <div className="flex gap-2">
+                              {/* NÚT THANH TOÁN (Chuyển sang trang Checkout) */}
+                              {booking.bookingStatus === "Pending" && (
                                 <button
                                   type="button"
-                                  onClick={() => handleDemoPayment(booking._id)}
-                                  disabled={payingBookingId === booking._id}
-                                  className="rounded-xl bg-[#173b31] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#245a4b] disabled:opacity-60"
+                                  onClick={() => navigate(`/checkout/${booking._id}`)}
+                                  className="rounded-xl bg-[#173b31] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#245a4b]"
                                 >
-                                  {payingBookingId === booking._id ? "Đang xử lý..." : "Thanh toán demo"}
+                                  Thanh toán ngay
+                                </button>
+                              )}
+                              {/* NÚT HỦY ĐƠN */}
+                              {(booking.bookingStatus === "Pending" || booking.bookingStatus === "Confirmed") && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelBooking(booking._id)}
+                                  className="rounded-xl bg-red-50 text-red-600 border border-red-100 px-4 py-2 text-sm font-bold transition hover:bg-red-100"
+                                >
+                                  Hủy đơn
                                 </button>
                               )}
                             </div>

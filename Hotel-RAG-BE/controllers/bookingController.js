@@ -169,3 +169,56 @@ exports.getMyBookings = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Không thể tải lịch sử đặt phòng lúc này' });
   }
 };
+// [GET] /api/bookings/:id - Lấy chi tiết 1 đơn hàng (Dùng cho trang Checkout)
+exports.getBookingById = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('hotelId', 'hotelName address')
+      .populate('bookingDetails.roomTypeId', 'title basePrice');
+
+    if (!booking || booking.customerId.toString() !== req.user.id) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn đặt phòng" });
+    }
+    res.status(200).json({ success: true, data: booking });
+  } catch (error) {
+    console.error("Lỗi lấy chi tiết đơn:", error);
+    res.status(500).json({ success: false, message: "Lỗi server" });
+  }
+};
+
+// [PUT] /api/bookings/:id/cancel - Hủy đơn & Hoàn trả quỹ phòng
+exports.cancelBooking = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    
+    if (!booking || booking.customerId.toString() !== req.user.id) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn đặt phòng" });
+    }
+
+    if (booking.bookingStatus === 'Cancelled') {
+      return res.status(400).json({ success: false, message: "Đơn này đã được hủy trước đó" });
+    }
+
+    // HOÀN TRẢ LẠI QUỸ PHÒNG VÀO INVENTORY
+    for (const item of booking.bookingDetails) {
+      const inventories = await RoomInventory.find({
+        roomTypeId: item.roomTypeId,
+        date: { $gte: booking.checkInDate, $lt: booking.checkOutDate }
+      });
+
+      for (const inv of inventories) {
+        inv.availableRooms += item.quantity; // Cộng trả lại số phòng khách đã giữ
+        await inv.save();
+      }
+    }
+
+    // Đổi trạng thái đơn thành Cancelled
+    booking.bookingStatus = 'Cancelled';
+    await booking.save();
+
+    res.status(200).json({ success: true, message: "Đã hủy đơn và hoàn trả quỹ phòng thành công!" });
+  } catch (error) {
+    console.error("Lỗi hủy đơn:", error);
+    res.status(500).json({ success: false, message: "Lỗi server khi hủy đơn" });
+  }
+};

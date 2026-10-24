@@ -10,7 +10,8 @@ const roomTypeSchema = new mongoose.Schema({
   maxChildren: { type: Number, default: 0 },
   totalQuantity: { type: Number, required: true }, // Đổi từ quantity
   amenities: [{ type: String }],
-  images: [{ type: String }] // Thêm mới
+  images: [{ type: String }], // Thêm mới
+  isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
 module.exports = mongoose.model('RoomType', roomTypeSchema, 'roomtypes');
