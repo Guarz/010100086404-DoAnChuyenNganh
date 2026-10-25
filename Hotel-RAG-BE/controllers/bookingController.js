@@ -57,7 +57,7 @@ exports.createBooking = async (req, res) => {
     let totalAmount = 0;
     const processedDetails = [];
 
-    // 1. KIỂM TRA & TRỪ QUỸ PHÒNG (Cho từng loại phòng khách đặt)
+    // Check availability and calculate the quote without reserving inventory.
     for (const item of bookingDetails) {
       const { roomTypeId, quantity } = item;
       if (!Number.isInteger(quantity) || quantity < 1) {
@@ -93,8 +93,6 @@ exports.createBooking = async (req, res) => {
         const priceForThisNight = inv.dynamicPrice || roomType.basePrice;
         roomTotalCost += (priceForThisNight * quantity);
         
-        // Trừ số lượng phòng trực tiếp vào biến bộ nhớ (chưa save DB vội)
-        inv.availableRooms -= quantity;
       }
 
       // Cộng dồn vào tổng tiền của cả chuyến đi
@@ -108,18 +106,15 @@ exports.createBooking = async (req, res) => {
         totalNights: totalNights
       });
 
-      // LƯU DB: Chỉ khi nào check xong hết các ngày không lỗi mới tiến hành cập nhật (Trừ phòng)
-      for (const inv of inventories) {
-        await inv.save();
-      }
     }
 
-    // 2. TẠO ĐƠN BOOKING
+    // Keep unpaid checkout requests temporarily; they are not reservations.
     const newBooking = new Booking({
       customerId: req.user.id,
       hotelId,
       checkInDate: checkIn,
       checkOutDate: checkOut,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       totalAmount,
       specialRequests,
       bookingStatus: 'Pending',
@@ -142,7 +137,10 @@ exports.createBooking = async (req, res) => {
 
 exports.getMyBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find({ customerId: req.user.id })
+    const bookings = await Booking.find({
+      customerId: req.user.id,
+      bookingStatus: { $in: ['Confirmed', 'Completed'] }
+    })
       .sort({ createdAt: -1 })
       .populate('hotelId', 'hotelName address images')
       .populate('bookingDetails.roomTypeId', 'title');
@@ -172,13 +170,34 @@ exports.getMyBookings = async (req, res) => {
 // [GET] /api/bookings/:id - Lấy chi tiết 1 đơn hàng (Dùng cho trang Checkout)
 exports.getBookingById = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id)
+    const booking = await Booking.findOne({
+      _id: req.params.id,
+      customerId: req.user.id,
+      bookingStatus: { $in: ['Pending', 'Confirmed'] }
+    })
       .populate('hotelId', 'hotelName address')
       .populate('bookingDetails.roomTypeId', 'title basePrice');
 
-    if (!booking || booking.customerId.toString() !== req.user.id) {
+    if (!booking) {
       return res.status(404).json({ success: false, message: "Không tìm thấy đơn đặt phòng" });
     }
+
+    if (booking.bookingStatus === 'Pending') {
+      const expiresAt = booking.expiresAt ||
+        new Date(booking.createdAt.getTime() + 5 * 60 * 1000);
+      if (expiresAt <= new Date()) {
+        await Booking.deleteOne({ _id: booking._id, bookingStatus: 'Pending' });
+        return res.status(410).json({
+          success: false,
+          message: "Đơn tạm đã hết hạn và được hủy. Vui lòng đặt lại nếu bạn vẫn muốn tiếp tục."
+        });
+      }
+      if (!booking.expiresAt) {
+        booking.expiresAt = expiresAt;
+        await booking.save();
+      }
+    }
+
     res.status(200).json({ success: true, data: booking });
   } catch (error) {
     console.error("Lỗi lấy chi tiết đơn:", error);
@@ -186,7 +205,7 @@ exports.getBookingById = async (req, res) => {
   }
 };
 
-// [PUT] /api/bookings/:id/cancel - Hủy đơn & Hoàn trả quỹ phòng
+// [PUT] /api/bookings/:id/cancel - Xóa đơn tạm chưa thanh toán
 exports.cancelBooking = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -195,28 +214,18 @@ exports.cancelBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: "Không tìm thấy đơn đặt phòng" });
     }
 
-    if (booking.bookingStatus === 'Cancelled') {
-      return res.status(400).json({ success: false, message: "Đơn này đã được hủy trước đó" });
-    }
-
-    // HOÀN TRẢ LẠI QUỸ PHÒNG VÀO INVENTORY
-    for (const item of booking.bookingDetails) {
-      const inventories = await RoomInventory.find({
-        roomTypeId: item.roomTypeId,
-        date: { $gte: booking.checkInDate, $lt: booking.checkOutDate }
+    if (booking.bookingStatus !== 'Pending') {
+      return res.status(400).json({
+        success: false,
+        message: "Chỉ có thể xóa đơn tạm chưa thanh toán"
       });
-
-      for (const inv of inventories) {
-        inv.availableRooms += item.quantity; // Cộng trả lại số phòng khách đã giữ
-        await inv.save();
-      }
     }
 
-    // Đổi trạng thái đơn thành Cancelled
-    booking.bookingStatus = 'Cancelled';
-    await booking.save();
-
-    res.status(200).json({ success: true, message: "Đã hủy đơn và hoàn trả quỹ phòng thành công!" });
+    await Booking.deleteOne({ _id: booking._id, bookingStatus: 'Pending' });
+    res.status(200).json({
+      success: true,
+      message: "Đã xóa đơn tạm. Số lượng phòng không bị thay đổi."
+    });
   } catch (error) {
     console.error("Lỗi hủy đơn:", error);
     res.status(500).json({ success: false, message: "Lỗi server khi hủy đơn" });

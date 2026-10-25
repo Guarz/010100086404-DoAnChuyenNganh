@@ -7,6 +7,7 @@ const bookingSchema = new mongoose.Schema({
   
   checkInDate: { type: Date, required: true },
   checkOutDate: { type: Date, required: true },
+  expiresAt: { type: Date },
   totalAmount: { type: Number, required: true },
   specialRequests: { type: String },
   
@@ -25,5 +26,7 @@ const bookingSchema = new mongoose.Schema({
   }]
 }, { timestamps: true }); 
 // timestamps tự động tạo createdAt (chính là BookingDate) và updatedAt
+
+bookingSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('Booking', bookingSchema);

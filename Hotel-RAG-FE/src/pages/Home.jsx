@@ -14,8 +14,22 @@ const getFormattedDate = (addDays = 0) => {
   return date.toISOString().split("T")[0];
 };
 
+const getStoredUserRole = () => {
+  try {
+    return JSON.parse(localStorage.getItem("nestly_user") || "null")?.role;
+  } catch {
+    return null;
+  }
+};
+
 export default function Home() {
   const navigate = useNavigate();
+  const hasSession = Boolean(localStorage.getItem("nestly_token"));
+  const [canApplyForPartner, setCanApplyForPartner] = useState(
+    () => !hasSession && !["Partner", "Admin"].includes(getStoredUserRole()),
+  );
+  const [applicationRoleChecked, setApplicationRoleChecked] =
+    useState(!hasSession);
   const [featuredHotels, setFeaturedHotels] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -63,7 +77,24 @@ export default function Home() {
         setLoading(false);
       }
     };
+    const fetchApplicationRole = async () => {
+      if (!localStorage.getItem("nestly_token")) return;
+      try {
+        const response = await API.get("/partner/application-status");
+        setCanApplyForPartner(
+          !["Partner", "Admin"].includes(response.data.data.role),
+        );
+      } catch (error) {
+        console.error("Lỗi kiểm tra quyền đăng ký partner:", error);
+        setCanApplyForPartner(
+          !["Partner", "Admin"].includes(getStoredUserRole()),
+        );
+      } finally {
+        setApplicationRoleChecked(true);
+      }
+    };
     fetchPublicHotels();
+    fetchApplicationRole();
   }, []);
 
   return (
@@ -389,12 +420,15 @@ export default function Home() {
               Đăng khách sạn, villa hoặc homestay của bạn. Nestly đồng hành từ
               bước thiết lập đầu tiên đến khi đón những vị khách đầu tiên.
             </p>
-            <button
-              onClick={() => navigate("/partner-apply")}
-              className="mt-8 flex items-center gap-2 rounded-full bg-[#173b31] px-6 py-3.5 font-bold text-white transition hover:bg-[#245a4b]"
-            >
-              Trở thành đối tác <Icon name="arrow" size={18} />
-            </button>
+            {(!hasSession || applicationRoleChecked) &&
+              canApplyForPartner && (
+              <button
+                onClick={() => navigate("/partner-apply")}
+                className="mt-8 flex items-center gap-2 rounded-full bg-[#173b31] px-6 py-3.5 font-bold text-white transition hover:bg-[#245a4b]"
+              >
+                Trở thành đối tác <Icon name="arrow" size={18} />
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="rounded-2xl bg-white p-6 shadow-sm">

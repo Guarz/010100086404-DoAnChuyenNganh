@@ -47,15 +47,10 @@ export default function HotelDetail() {
   // State xử lý trạng thái
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
-  const [bookingSuccess, setBookingSuccess] = useState("");
-  const [pendingPayment, setPendingPayment] = useState(null);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentError, setPaymentError] = useState("");
 
   const handleBooking = async (event) => {
     event.preventDefault();
     setBookingError("");
-    setBookingSuccess("");
 
     const token = localStorage.getItem("nestly_token");
     if (!token) {
@@ -85,17 +80,7 @@ export default function HotelDetail() {
         ],
         specialRequests,
       });
-      // Tạo đơn thành công -> Đẩy khách thẳng sang trang Checkout chuyên dụng
       navigate(`/checkout/${response.data.data._id}`);
-
-      setPendingPayment({
-        id: response.data.data._id,
-        amount: response.data.data.totalAmount,
-      });
-      setBookingSuccess(
-        "Đơn đã được tạo. Vui lòng hoàn tất thanh toán để giữ phòng.",
-      );
-      setBookingRoomId("");
     } catch (error) {
       setBookingError(
         error.response?.data?.message ||
@@ -103,26 +88,6 @@ export default function HotelDetail() {
       );
     } finally {
       setBookingLoading(false);
-    }
-  };
-
-  const handleDemoPayment = async () => {
-    if (!pendingPayment || paymentLoading) return;
-    setPaymentLoading(true);
-    setPaymentError("");
-    try {
-      await API.post(`/payments/demo/${pendingPayment.id}`);
-      setBookingSuccess("Thanh toán thành công! Đang chuyển hướng...");
-      setPendingPayment(null);
-      // Chuyển hướng sang trang Profile sau khi thanh toán thành công
-      setTimeout(() => navigate("/profile"), 1500);
-    } catch (error) {
-      setPaymentError(
-        error.response?.data?.message ||
-          "Không thể xử lý thanh toán. Vui lòng thử lại.",
-      );
-    } finally {
-      setPaymentLoading(false);
     }
   };
 
@@ -283,41 +248,6 @@ export default function HotelDetail() {
               Chọn phòng của bạn
             </h2>
 
-            {bookingSuccess && (
-              <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
-                {bookingSuccess}
-              </p>
-            )}
-
-            {/* BOX THANH TOÁN */}
-            {pendingPayment && (
-              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                <h3 className="font-bold text-[#173b31]">Thanh toán</h3>
-                <p className="mt-2 text-sm text-stone-600">
-                  Xác nhận thanh toán mô phỏng để giữ phòng.
-                </p>
-                <p className="mt-4 text-lg font-extrabold text-[#173b31]">
-                  {pendingPayment.amount.toLocaleString("vi-VN")}₫
-                </p>
-                {paymentError && (
-                  <p
-                    role="alert"
-                    className="mt-3 text-sm font-semibold text-red-600"
-                  >
-                    {paymentError}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={handleDemoPayment}
-                  disabled={paymentLoading}
-                  className="mt-4 w-full rounded-xl bg-[#173b31] px-5 py-3 font-bold text-white transition hover:bg-[#245a4b] disabled:opacity-60"
-                >
-                  {paymentLoading ? "Đang xử lý..." : "Mô phỏng thanh toán"}
-                </button>
-              </section>
-            )}
-
             {rooms.length === 0 ? (
               <p className="text-stone-500 italic">
                 Khách sạn này hiện chưa có hạng phòng nào được mở bán.
@@ -374,8 +304,6 @@ export default function HotelDetail() {
                           onClick={() => {
                             setBookingRoomId(room._id);
                             setBookingError("");
-                            setBookingSuccess("");
-                            setPendingPayment(null);
                           }}
                           className={`rounded-xl px-6 py-3 font-bold transition ${bookingRoomId === room._id ? "bg-[#b7812d] text-white" : "bg-[#173b31] text-white hover:bg-[#245a4b]"}`}
                         >
@@ -388,7 +316,7 @@ export default function HotelDetail() {
                   </div>
 
                   {/* FORM NHẬP THÔNG TIN (Mở ra khi bấm Chọn phòng) */}
-                  {bookingRoomId === room._id && !pendingPayment && (
+                  {bookingRoomId === room._id && (
                     <form
                       onSubmit={handleBooking}
                       className="mt-6 grid gap-4 border-t border-stone-100 pt-6 sm:grid-cols-2"

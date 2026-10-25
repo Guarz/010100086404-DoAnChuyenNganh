@@ -20,6 +20,8 @@ export default function ProfilePage({ onLogout }) {
   }, [currentUser, navigate]);
 
   const fetchBookings = () => {
+    setBookingsLoading(true);
+    setBookingsError("");
     API.get("/bookings/my-bookings")
       .then((response) => {
         setBookings(response.data.data);
@@ -30,27 +32,6 @@ export default function ProfilePage({ onLogout }) {
       .finally(() => {
         setBookingsLoading(false);
       });
-  };
-
-  useEffect(() => {
-    if (active === "booking") {
-      fetchBookings();
-    }
-  }, [active]);
-
-  // HÀM MỚI: Xử lý Hủy đơn
-  const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm("Bạn có chắc chắn muốn hủy đơn đặt phòng này? (Quỹ phòng sẽ được hoàn lại hệ thống)")) return;
-    
-    try {
-      const res = await API.put(`/bookings/${bookingId}/cancel`);
-      if (res.data.success) {
-        alert(res.data.message);
-        fetchBookings(); // Tải lại danh sách sau khi hủy thành công
-      }
-    } catch (error) {
-      alert(error.response?.data?.message || "Lỗi khi hủy đơn");
-    }
   };
 
   const [formData, setFormData] = useState({
@@ -115,8 +96,9 @@ export default function ProfilePage({ onLogout }) {
                 <button
                   key={item.id}
                   onClick={() => {
-                    if (item.id === "booking" && active !== "booking") {
+                    if (item.id === "booking") {
                       setBookingsError("");
+                      fetchBookings();
                     }
                     setActive(item.id);
                     setSaved(false);
@@ -205,13 +187,14 @@ export default function ProfilePage({ onLogout }) {
                             </div>
                             <span className={`rounded-full px-3 py-1 text-xs font-bold ${
                               booking.bookingStatus === 'Confirmed' ? 'bg-emerald-50 text-emerald-700' :
-                              booking.bookingStatus === 'Cancelled' ? 'bg-red-50 text-red-700' :
+                              booking.bookingStatus === 'Canceled' ? 'bg-red-50 text-red-700' :
                               'bg-amber-50 text-amber-800'
                             }`}>
                               {{
                                 Pending: "Chờ thanh toán",
                                 Confirmed: "Đã thanh toán",
-                                Cancelled: "Đã hủy"
+                                Canceled: "Đã hủy",
+                                Completed: "Đã hoàn thành"
                               }[booking.bookingStatus] || booking.bookingStatus}
                             </span>
                           </div>
@@ -229,29 +212,7 @@ export default function ProfilePage({ onLogout }) {
                             ))}
                           </div>
 
-                          <div className="mt-auto pt-4 flex flex-wrap items-end justify-between gap-3 border-t border-slate-100">
-                            <div className="flex gap-2">
-                              {/* NÚT THANH TOÁN (Chuyển sang trang Checkout) */}
-                              {booking.bookingStatus === "Pending" && (
-                                <button
-                                  type="button"
-                                  onClick={() => navigate(`/checkout/${booking._id}`)}
-                                  className="rounded-xl bg-[#173b31] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#245a4b]"
-                                >
-                                  Thanh toán ngay
-                                </button>
-                              )}
-                              {/* NÚT HỦY ĐƠN */}
-                              {(booking.bookingStatus === "Pending" || booking.bookingStatus === "Confirmed") && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleCancelBooking(booking._id)}
-                                  className="rounded-xl bg-red-50 text-red-600 border border-red-100 px-4 py-2 text-sm font-bold transition hover:bg-red-100"
-                                >
-                                  Hủy đơn
-                                </button>
-                              )}
-                            </div>
+                          <div className="mt-auto flex justify-end border-t border-slate-100 pt-4">
                             <p className="text-right font-bold text-[#173b31] text-lg">
                               {booking.totalAmount.toLocaleString("vi-VN")}₫
                             </p>

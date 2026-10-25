@@ -12,6 +12,8 @@ import Hotels from "./pages/Hotels";
 import HotelDetail from "./pages/HotelDetail";
 import AuthPage from "./pages/AuthPage";
 import ProfilePage from "./pages/ProfilePage";
+import Checkout from "./pages/Checkout";
+import VNPayReturn from "./pages/VNPayReturn";
 import PartnerApplication from "./pages/PartnerApplication"; // <- MỚI
 import PartnerDashboard from "./pages/PartnerDashboard"; // <- MỚI
 import AdminDashboard from "./pages/AdminDashboard"; // <- MỚI
@@ -58,8 +60,15 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            <Route element="{<Checkout" path="/checkout/:id" />{" "}
-            <Route element="{<VNPayReturn" path="/payment/vnpay-return" />
+            <Route
+              path="/checkout/:id"
+              element={
+                <ProtectedRoute>
+                  <Checkout />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/payment/vnpay-return" element={<VNPayReturn />} />
             {/* Bất kỳ ai đăng nhập cũng có thể gửi đơn xin làm đối tác */}
             <Route
               path="/partner-apply"

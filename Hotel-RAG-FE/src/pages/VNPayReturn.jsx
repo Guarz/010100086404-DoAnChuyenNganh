@@ -7,6 +7,7 @@ export default function VNPayReturn() {
   const location = useLocation();
   const navigate = useNavigate();
   const hasVerified = useRef(false);
+  const bookingId = new URLSearchParams(location.search).get("vnp_TxnRef");
 
   useEffect(() => {
     if (hasVerified.current) return;
@@ -37,7 +38,9 @@ export default function VNPayReturn() {
           <>
             <div className="mx-auto flex size-20 items-center justify-center rounded-full bg-red-100 text-4xl text-red-600">✕</div>
             <h2 className="mt-6 text-2xl font-bold text-red-600">Giao dịch thất bại</h2>
-            <Link to="/hotels" className="mt-6 block rounded-xl bg-[#173b31] py-3 font-bold text-white">Quay về Trang chủ</Link>
+            <Link to={bookingId ? `/checkout/${bookingId}` : "/hotels"} className="mt-6 block rounded-xl bg-[#173b31] py-3 font-bold text-white">
+              {bookingId ? "Quay lại đơn hàng để thử thanh toán lại" : "Quay về Trang chủ"}
+            </Link>
           </>
         )}
       </div>
