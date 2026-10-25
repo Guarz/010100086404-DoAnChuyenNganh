@@ -161,3 +161,14 @@ exports.searchHotels = async (req, res) => {
       .json({ success: false, message: "Lỗi server khi tìm kiếm" });
   }
 };
+exports.getFeaturedHotels = async (req, res) => {
+  try {
+    const featuredHotels = await Hotel.find({ status: 'Approved' })
+      .sort({ rating: -1 }) // -1 là xếp từ cao xuống thấp
+      .limit(8);            // Chỉ lấy tối đa 8 bản ghi
+      
+    res.status(200).json({ success: true, data: featuredHotels });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Lỗi tải danh sách khách sạn' });
+  }
+};

@@ -56,7 +56,7 @@ export default function AdminDashboard() {
     } catch (error) {
       setPartnersError(
         error.response?.data?.message ||
-          "Không thể tải yêu cầu làm shop. Vui lòng thử lại.",
+          "Không thể tải yêu cầu trở thành đối tác. Vui lòng thử lại.",
       );
     } finally {
       setPartnersLoading(false);
@@ -210,26 +210,26 @@ export default function AdminDashboard() {
           <StatCard
             icon="clock"
             label="Khách sạn chờ duyệt"
-            value={String(items.length + 21)}
-            note="5 hồ sơ mới hôm nay"
+            value={String(items.length)}
+            note=" hồ sơ mới hôm nay"
           />
           <StatCard
             icon="check"
             label="Đã duyệt tháng này"
-            value="148"
-            note="Trung bình 18 giờ / hồ sơ"
+            value="0"
+            note="0"
           />
           <StatCard
             icon="home"
             label="Tổng chỗ nghỉ"
-            value="12.486"
-            note="↑ 6,2% trong 30 ngày"
+            value="0"
+            note="Tăng 0% trong 30 ngày"
           />
           <StatCard
             icon="users"
             label="Đơn partner chờ duyệt"
             value={partnersLoading ? "..." : String(partners.length)}
-            note="Yêu cầu làm shop"
+            note="Yêu cầu trở thành đối tác"
           />
         </div>
 
