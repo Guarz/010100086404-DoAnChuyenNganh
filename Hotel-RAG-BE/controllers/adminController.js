@@ -1,9 +1,13 @@
 // File: controllers/adminController.js
 const Hotel = require('../models/Hotel');
 const User = require('../models/User');
+const RagLog = require('../models/RagLog');
+const RoomType = require('../models/RoomType');
 const mongoose = require('mongoose');
 const { generateHotelEmbedding } = require('../services/aiService');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // [GET] /api/admin/users - Lấy danh sách người dùng
 exports.getUsers = async (req, res) => {
   try {
@@ -107,5 +111,111 @@ exports.approveHotel = async (req, res) => {
   } catch (error) {
     console.error("Lỗi phê duyệt khách sạn:", error);
     res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+};
+exports.evaluateGroundedness = async (req, res) => {
+  try {
+    // 1. Tìm các log chưa được chấm điểm Groundedness
+    const unevaluatedLogs = await RagLog.find({ 'metrics.groundedness': null }).limit(10);
+
+    if (unevaluatedLogs.length === 0) {
+      return res.status(200).json({ message: "Tất cả logs đã được chấm điểm." });
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    let evaluatedCount = 0;
+
+    for (const log of unevaluatedLogs) {
+      // Lấy text thực tế từ các Context ID đã truy xuất
+      const contexts = await RoomType.find({ _id: { $in: log.retrievedContextIds } });
+      const contextText = contexts.map(c => c.description).join("\n\n");
+
+      // 2. Thiết kế Prompt ép LLM làm Giám khảo
+      const prompt = `
+        Bạn là một giám khảo AI khách quan. Nhiệm vụ của bạn là đánh giá "Groundedness" (Độ bám sát ngữ cảnh) của câu trả lời.
+        
+        NGỮ CẢNH (Context):
+        """${contextText}"""
+        
+        CÂU TRẢ LỜI CỦA HỆ THỐNG (Answer):
+        """${log.llmResponse}"""
+        
+        QUY TẮC CHẤM ĐIỂM:
+        - Điểm 1: Toàn bộ thông tin trong câu trả lời đều có thể tìm thấy trong Ngữ cảnh. Không bịa đặt.
+        - Điểm 0: Câu trả lời chứa thông tin không hề xuất hiện trong Ngữ cảnh (Hallucination).
+        
+        Bắt buộc chỉ trả về một chuỗi JSON hợp lệ với định dạng: {"groundedness": 1} hoặc {"groundedness": 0}. Không giải thích thêm.
+      `;
+
+      try {
+        // 3. Gọi LLM chấm điểm
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text().trim();
+        
+        // Cắt bỏ markdown ```json nếu có để parse
+        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '');
+        const scoreData = JSON.parse(cleanJson);
+
+        // 4. Cập nhật điểm số vào Database
+        log.metrics.groundedness = scoreData.groundedness;
+        await log.save();
+        evaluatedCount++;
+        
+      } catch (err) {
+        console.error(`Lỗi chấm điểm cho log ${log._id}:`, err);
+        // Bỏ qua lỗi của 1 log để chạy tiếp vòng lặp
+      }
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: `Đã chấm điểm Groundedness tự động cho ${evaluatedCount} logs.` 
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+exports.getRagAnalytics = async (req, res) => {
+  try {
+    // 1. Lấy danh sách 50 log gần nhất để hiển thị ra bảng
+    const logs = await RagLog.find().sort({ createdAt: -1 }).limit(50);
+
+    // 2. Tính toán các chỉ số tổng quan (Aggregate)
+    // Lọc ra các log ĐÃ CÓ NHÃN CHUẨN (goldenContextIds) để tính điểm
+    const evaluatedLogs = logs.filter(log => log.goldenContextIds && log.goldenContextIds.length > 0);
+    
+    let totalHitRate = 0;
+    let totalRecall = 0;
+
+    evaluatedLogs.forEach(log => {
+      // Dùng hàm giao tập hợp để tính
+      const goldenStr = log.goldenContextIds.map(id => id.toString());
+      const retrievedStr = log.retrievedContextIds.map(id => id.toString());
+      
+      const correctHits = retrievedStr.filter(id => goldenStr.includes(id)).length;
+      
+      if (correctHits > 0) totalHitRate += 1; // Tính Hit
+      if (goldenStr.length > 0) {
+        totalRecall += (correctHits / goldenStr.length); // Tính Recall
+      }
+    });
+
+    const avgHitRate = evaluatedLogs.length ? (totalHitRate / evaluatedLogs.length) * 100 : 0;
+    const avgRecall = evaluatedLogs.length ? (totalRecall / evaluatedLogs.length) : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        recentLogs: logs,
+        metrics: {
+          totalEvaluated: evaluatedLogs.length,
+          avgHitRate: avgHitRate.toFixed(2),
+          avgRecall: avgRecall.toFixed(4)
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Lỗi lấy dữ liệu RAG Analytics' });
   }
 };
