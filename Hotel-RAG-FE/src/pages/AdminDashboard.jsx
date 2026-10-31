@@ -1,12 +1,36 @@
 // File: src/pages/AdminDashboard.jsx
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import Icon from "../components/Icon"; // Hoặc "../components/Icon"
 import StatCard from "../components/StatCard";
 import API from "../services/api";
 
+const HOTEL_FILTERS = [
+  { value: "Pending", label: "Chờ duyệt" },
+  { value: "Approved", label: "Đã duyệt" },
+  { value: "Rejected", label: "Từ chối" },
+  { value: "all", label: "Tất cả" },
+];
+
+const HOTEL_STATUS_BADGE = {
+  Pending: { label: "CHỜ DUYỆT", className: "bg-amber-50 text-amber-700" },
+  Approved: { label: "ĐÃ DUYỆT", className: "bg-emerald-50 text-emerald-700" },
+  Rejected: { label: "ĐÃ TỪ CHỐI", className: "bg-red-50 text-red-700" },
+};
+
 export default function AdminDashboard() {
-  const [items, setItems] = useState([]); // Khởi tạo mảng rỗng
+  const [items, setItems] = useState([]); // Danh sách khách sạn theo bộ lọc
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [itemsError, setItemsError] = useState("");
+  const [hotelFilter, setHotelFilter] = useState("Pending");
+  const [hotelSummary, setHotelSummary] = useState({
+    Pending: 0,
+    Approved: 0,
+    Rejected: 0,
+    all: 0,
+  });
+  const [decidingHotelId, setDecidingHotelId] = useState("");
+  const [expandedHotelId, setExpandedHotelId] = useState("");
   const [partners, setPartners] = useState([]);
   const [partnersLoading, setPartnersLoading] = useState(false);
   const [partnersError, setPartnersError] = useState("");
@@ -62,14 +86,18 @@ export default function AdminDashboard() {
       setPartnersLoading(false);
     }
   };
-  const loadPendingHotels = async () => {
+  const loadHotels = async (status = hotelFilter) => {
     setItemsLoading(true);
+    setItemsError("");
     try {
-      const response = await API.get("/admin/hotels/pending");
+      const response = await API.get("/admin/hotels", { params: { status } });
       setItems(response.data.data);
+      setHotelSummary(response.data.summary);
     } catch (error) {
-      console.error("Lỗi tải danh sách KS:", error); // ĐÃ SỬ DỤNG BIẾN ERROR
-      setToast("Không thể tải danh sách khách sạn chờ duyệt.");
+      setItemsError(
+        error.response?.data?.message ||
+          "Không thể tải danh sách khách sạn. Vui lòng thử lại.",
+      );
     } finally {
       setItemsLoading(false);
     }
@@ -77,34 +105,63 @@ export default function AdminDashboard() {
   useEffect(() => {
     // Yêu cầu ESLint bỏ qua cảnh báo này vì đây là pattern lấy dữ liệu hợp lệ
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadPendingHotels();
+    loadHotels("Pending");
   }, []);
-  // Sửa lại hàm decide cũ thành hàm decideHotel mới này:
-  const decideHotel = async (hotelId, decision, hotelName) => {
-    if (decision === "từ chối") {
-      alert("Chức năng từ chối đang được cập nhật!"); // Có thể làm API Reject sau
+
+  const changeHotelFilter = (status) => {
+    setHotelFilter(status);
+    setExpandedHotelId("");
+    loadHotels(status);
+  };
+
+  // Duyệt (Approved) hoặc Từ chối (Rejected) khách sạn
+  const decideHotel = async (hotel, status) => {
+    let reason;
+    if (status === "Rejected") {
+      reason = window.prompt(
+        `Lý do từ chối "${hotel.hotelName}" (không bắt buộc):`,
+        "",
+      );
+      if (reason === null) return; // Admin bấm Hủy
+    } else if (!window.confirm(`Phê duyệt "${hotel.hotelName}" lên hệ thống?`)) {
       return;
     }
 
-    // Xử lý Phê duyệt (Approve)
-    try {
+    setDecidingHotelId(hotel._id);
+    setItemsError("");
+    if (status === "Approved") {
       setToast(
-        `Đang dùng AI Gemini tạo Vector cho ${hotelName}... Vui lòng đợi!`,
+        `Đang dùng AI Gemini tạo Vector cho ${hotel.hotelName}... Vui lòng đợi!`,
       );
+    }
 
-      // Gọi API Approve mà team Backend vừa viết
-      const res = await API.put(`/admin/hotels/${hotelId}/approve`);
+    try {
+      const res = await API.put(`/admin/hotels/${hotel._id}/status`, {
+        status,
+        reason,
+      });
+      const updated = res.data.data;
 
-      if (res.data.success) {
-        // Xóa khách sạn khỏi danh sách chờ trên màn hình
-        setItems(items.filter((item) => item._id !== hotelId));
-        setToast(res.data.message); // Hiển thị "Đã duyệt và tạo Vector AI thành công"
-      }
+      // Tab "Tất cả" thì cập nhật tại chỗ, các tab khác thì bỏ khỏi danh sách
+      setItems((current) =>
+        hotelFilter === "all"
+          ? current.map((item) => (item._id === updated._id ? updated : item))
+          : current.filter((item) => item._id !== updated._id),
+      );
+      setHotelSummary((current) => ({
+        ...current,
+        [hotel.status]: Math.max(0, current[hotel.status] - 1),
+        [status]: current[status] + 1,
+      }));
+      setToast(res.data.message);
     } catch (error) {
-      setToast(
-        "Lỗi khi duyệt khách sạn: " +
+      setToast("");
+      setItemsError(
+        "Lỗi khi cập nhật khách sạn: " +
           (error.response?.data?.message || error.message),
       );
+    } finally {
+      setDecidingHotelId("");
     }
   };
 
@@ -190,9 +247,17 @@ export default function AdminDashboard() {
               Quản lý người dùng, đối tác và các chỗ nghỉ trên Nestly.
             </p>
           </div>
-          <div className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm">
-            <span className="size-2 rounded-full bg-emerald-500" /> Hệ thống
-            hoạt động tốt
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/admin/rag"
+              className="flex items-center gap-2 rounded-full bg-[#173b31] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#245a4b]"
+            >
+              <Icon name="sparkle" size={16} /> RAG Analytics
+            </Link>
+            <div className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm">
+              <span className="size-2 rounded-full bg-emerald-500" /> Hệ thống
+              hoạt động tốt
+            </div>
           </div>
         </div>
 
@@ -210,20 +275,20 @@ export default function AdminDashboard() {
           <StatCard
             icon="clock"
             label="Khách sạn chờ duyệt"
-            value={String(items.length)}
-            note=" hồ sơ mới hôm nay"
+            value={String(hotelSummary.Pending)}
+            note="Hồ sơ cần xử lý"
           />
           <StatCard
             icon="check"
-            label="Đã duyệt tháng này"
-            value="0"
-            note="0"
+            label="Khách sạn đang hoạt động"
+            value={String(hotelSummary.Approved)}
+            note={`${hotelSummary.Rejected} hồ sơ đã từ chối`}
           />
           <StatCard
             icon="home"
             label="Tổng chỗ nghỉ"
-            value="0"
-            note="Tăng 0% trong 30 ngày"
+            value={String(hotelSummary.all)}
+            note="Tất cả hồ sơ đã đăng ký"
           />
           <StatCard
             icon="users"
@@ -244,7 +309,7 @@ export default function AdminDashboard() {
           >
             Duyệt khách sạn{" "}
             <span className="ml-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs">
-              {items.length}
+              {hotelSummary.Pending}
             </span>
           </button>
           <button
@@ -550,104 +615,227 @@ export default function AdminDashboard() {
             <div className="flex flex-col justify-between gap-4 border-b border-stone-200 p-6 sm:flex-row sm:items-center">
               <div>
                 <h2 className="font-display text-2xl font-semibold text-[#173b31]">
-                  Hồ sơ chờ xét duyệt
+                  Quản lý khách sạn
                 </h2>
                 <p className="mt-1 text-sm text-stone-500">
-                  Ưu tiên hồ sơ đã chờ lâu nhất
+                  {hotelFilter === "Pending"
+                    ? "Ưu tiên hồ sơ đã chờ lâu nhất"
+                    : `${items.length} khách sạn`}
                 </p>
               </div>
-              <div className="flex rounded-full bg-stone-100 p-1 text-xs font-bold">
-                <button className="rounded-full bg-white px-4 py-2 shadow-sm">
-                  Tất cả
-                </button>
-                <button className="px-4 py-2 text-stone-500">
-                  Cần bổ sung
-                </button>
+              <div className="flex flex-wrap rounded-full bg-stone-100 p-1 text-xs font-bold">
+                {HOTEL_FILTERS.map((filter) => (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    onClick={() => changeHotelFilter(filter.value)}
+                    className={`rounded-full px-4 py-2 transition ${
+                      hotelFilter === filter.value
+                        ? "bg-white shadow-sm"
+                        : "text-stone-500"
+                    }`}
+                  >
+                    {filter.label}{" "}
+                    <span className="text-stone-400">
+                      {hotelSummary[filter.value]}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
+
+            {itemsError && (
+              <div
+                role="alert"
+                className="m-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700"
+              >
+                {itemsError}
+                <button
+                  type="button"
+                  onClick={() => loadHotels()}
+                  className="ml-3 underline"
+                >
+                  Tải lại
+                </button>
+              </div>
+            )}
+
             <div className="divide-y divide-stone-100">
-              {items.length === 0 && (
-                <div className="p-16 text-center">
-                  <span className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-50 text-emerald-700">
-                    <Icon name="check" size={25} />
-                  </span>
-                  <h3 className="mt-4 font-display text-2xl font-semibold text-[#173b31]">
-                    Đã xử lý hết!
-                  </h3>
-                  <p className="mt-2 text-sm text-stone-500">
-                    Không còn hồ sơ nào trong danh sách này.
-                  </p>
-                </div>
-              )}
               {itemsLoading ? (
                 <div className="p-14 text-center text-stone-500">
                   Đang tải hồ sơ...
                 </div>
               ) : items.length === 0 ? (
                 <div className="p-16 text-center">
-                  {/* ... (Khối báo 'Đã xử lý hết' của bạn giữ nguyên) ... */}
+                  <span className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-50 text-emerald-700">
+                    <Icon name="check" size={25} />
+                  </span>
+                  <h3 className="mt-4 font-display text-2xl font-semibold text-[#173b31]">
+                    {hotelFilter === "Pending" ? "Đã xử lý hết!" : "Danh sách trống"}
+                  </h3>
+                  <p className="mt-2 text-sm text-stone-500">
+                    Không còn hồ sơ nào trong danh sách này.
+                  </p>
                 </div>
               ) : (
-                items.map((item) => (
-                  <article
-                    key={item._id}
-                    className="grid gap-5 p-5 lg:grid-cols-[100px_1fr_auto] lg:items-center lg:p-6"
-                  >
-                    {/* Lấy ảnh đầu tiên, nếu không có lấy ảnh mặc định */}
-                    <img
-                      src={
-                        item.images?.[0] ||
-                        "https://images.unsplash.com/photo-1678913308053-316cee77afe9?auto=format&fit=crop&w=900&q=85"
-                      }
-                      alt={item.hotelName}
-                      className="h-24 w-full rounded-xl object-cover lg:w-24"
-                    />
+                items.map((item) => {
+                  const badge =
+                    HOTEL_STATUS_BADGE[item.status] || HOTEL_STATUS_BADGE.Pending;
+                  const isDeciding = decidingHotelId === item._id;
+                  const isExpanded = expandedHotelId === item._id;
+                  return (
+                    <article key={item._id} className="p-5 lg:p-6">
+                      <div className="grid gap-5 lg:grid-cols-[100px_1fr_auto] lg:items-center">
+                        {/* Lấy ảnh đầu tiên, nếu không có lấy ảnh mặc định */}
+                        <img
+                          src={
+                            item.images?.[0] ||
+                            "https://images.unsplash.com/photo-1678913308053-316cee77afe9?auto=format&fit=crop&w=900&q=85"
+                          }
+                          alt={item.hotelName}
+                          className="h-24 w-full rounded-xl object-cover lg:w-24"
+                        />
 
-                    <div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* Hiển thị Tên khách sạn */}
-                        <h3 className="font-display text-xl font-semibold text-[#173b31]">
-                          {item.hotelName}
-                        </h3>
-                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-extrabold text-amber-700">
-                          MỚI
-                        </span>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h3 className="font-display text-xl font-semibold text-[#173b31]">
+                              {item.hotelName}
+                            </h3>
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${badge.className}`}
+                            >
+                              {badge.label}
+                            </span>
+                            {item.reviewCount > 0 && (
+                              <span className="flex items-center gap-1 text-xs font-bold text-[#b7812d]">
+                                <Icon name="star" size={13} /> {item.rating}
+                                <span className="font-semibold text-stone-400">
+                                  ({item.reviewCount})
+                                </span>
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1.5 text-sm text-stone-500">
+                            {[item.address?.city, item.address?.province]
+                              .filter(Boolean)
+                              .join(", ") || "Chưa cập nhật"}{" "}
+                            · Đối tác:{" "}
+                            <strong className="text-stone-700">
+                              {item.partnerId?.fullName || "Không rõ"}
+                            </strong>
+                          </p>
+                          <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-stone-400">
+                            <Icon name="clock" size={14} /> Gửi lúc{" "}
+                            {new Date(item.createdAt).toLocaleString("vi-VN")}
+                            {item.reviewedAt &&
+                              ` · Xử lý lúc ${new Date(item.reviewedAt).toLocaleString("vi-VN")}`}
+                          </p>
+                          {item.status === "Rejected" && item.rejectionReason && (
+                            <p className="mt-2 text-xs font-semibold text-red-600">
+                              Lý do từ chối: {item.rejectionReason}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedHotelId(isExpanded ? "" : item._id)
+                            }
+                            className="rounded-full border border-stone-200 px-4 py-2.5 text-sm font-bold text-stone-700 hover:bg-stone-50"
+                          >
+                            {isExpanded ? "Thu gọn" : "Xem hồ sơ"}
+                          </button>
+                          {item.status !== "Rejected" && (
+                            <button
+                              type="button"
+                              onClick={() => decideHotel(item, "Rejected")}
+                              disabled={isDeciding}
+                              className="rounded-full border border-[#c76b55]/30 px-4 py-2.5 text-sm font-bold text-[#a44f3c] hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {item.status === "Approved" ? "Gỡ duyệt" : "Từ chối"}
+                            </button>
+                          )}
+                          {item.status !== "Approved" && (
+                            <button
+                              type="button"
+                              onClick={() => decideHotel(item, "Approved")}
+                              disabled={isDeciding}
+                              className="flex items-center gap-2 rounded-full bg-[#173b31] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#245a4b] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Icon name="check" size={16} />
+                              {isDeciding ? "Đang xử lý..." : "Phê duyệt"}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <p className="mt-1.5 text-sm text-stone-500">
-                        {/* Hiển thị Thành phố từ Object address */}
-                        {item.address?.city || "Chưa cập nhật"} · ID:{" "}
-                        {item._id.slice(-6)}
-                      </p>
-                      <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-stone-400">
-                        <Icon name="clock" size={14} /> Gửi lúc{" "}
-                        {new Date(item.createdAt).toLocaleString("vi-VN")}
-                      </p>
-                    </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <button className="rounded-full border border-stone-200 px-4 py-2.5 text-sm font-bold text-stone-700 hover:bg-stone-50">
-                        Xem hồ sơ
-                      </button>
-                      <button
-                        onClick={() =>
-                          decideHotel(item._id, "từ chối", item.hotelName)
-                        }
-                        className="rounded-full border border-[#c76b55]/30 px-4 py-2.5 text-sm font-bold text-[#a44f3c] hover:bg-red-50"
-                      >
-                        Từ chối
-                      </button>
-                      {/* Nút Phê duyệt quan trọng */}
-                      <button
-                        onClick={() =>
-                          decideHotel(item._id, "phê duyệt", item.hotelName)
-                        }
-                        className="flex items-center gap-2 rounded-full bg-[#173b31] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#245a4b]"
-                      >
-                        <Icon name="check" size={16} /> Phê duyệt (Sinh Vector)
-                      </button>
-                    </div>
-                  </article>
-                ))
+                      {isExpanded && (
+                        <div className="mt-5 grid gap-5 rounded-2xl bg-stone-50 p-5 text-sm text-stone-600 md:grid-cols-2">
+                          <div className="md:col-span-2">
+                            <p className="font-bold text-stone-800">Mô tả</p>
+                            <p className="mt-1 whitespace-pre-line">
+                              {item.description || "Chưa có mô tả"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-bold text-stone-800">Địa chỉ</p>
+                            <p className="mt-1">
+                              {[
+                                item.address?.street,
+                                item.address?.city,
+                                item.address?.province,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-bold text-stone-800">
+                              Liên hệ đối tác
+                            </p>
+                            <p className="mt-1">
+                              {item.partnerId?.email || "—"}
+                              {item.partnerId?.phone
+                                ? ` · ${item.partnerId.phone}`
+                                : ""}
+                            </p>
+                          </div>
+                          <div className="md:col-span-2">
+                            <p className="font-bold text-stone-800">Tiện ích</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {item.amenities?.length ? (
+                                item.amenities.map((amenity) => (
+                                  <span
+                                    key={amenity}
+                                    className="rounded-full bg-white px-3 py-1 text-xs font-semibold"
+                                  >
+                                    {amenity}
+                                  </span>
+                                ))
+                              ) : (
+                                <span>Chưa khai báo</span>
+                              )}
+                            </div>
+                          </div>
+                          {item.images?.length > 1 && (
+                            <div className="flex gap-2 overflow-x-auto md:col-span-2">
+                              {item.images.map((src) => (
+                                <img
+                                  key={src}
+                                  src={src}
+                                  alt={item.hotelName}
+                                  className="h-20 w-28 shrink-0 rounded-lg object-cover"
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })
               )}
             </div>
           </section>

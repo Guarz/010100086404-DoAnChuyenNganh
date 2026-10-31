@@ -1,7 +1,25 @@
 // File: src/components/AIChatWidget.jsx
 import { useState, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 import Icon from "./Icon";
 import API from "../services/api"; // Import Axios instance vừa tạo
+
+const formatMoney = (n) => `${Math.round(n / 1000).toLocaleString("vi-VN")}k`;
+
+const describeConstraints = (c) =>
+  [
+    c.city,
+    c.checkIn && `${c.checkIn} → ${c.checkOut}`,
+    c.adults && `${c.adults} người lớn`,
+    c.children && `${c.children} trẻ em`,
+    c.rooms && `${c.rooms} phòng`,
+    c.minPrice && `≥ ${formatMoney(c.minPrice)}/đêm`,
+    c.maxPrice && `≤ ${formatMoney(c.maxPrice)}/đêm`,
+    ...(c.amenities || []),
+    ...(c.roomKinds || []),
+    c.sortByPrice === "asc" && "Giá thấp nhất",
+    c.sortByPrice === "desc" && "Giá cao nhất",
+  ].filter(Boolean);
 
 export default function AIChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -44,12 +62,17 @@ export default function AIChatWidget() {
       
       if (response.data.success) {
         const aiAnswer = response.data.answer;
-        const recommendedHotels = response.data.data || [];
+        const recommendedRooms = response.data.rooms || [];
 
-        // 3. Thêm câu trả lời của AI vào giao diện
+        // 3. Thêm câu trả lời của AI vào giao diện (kèm ràng buộc hệ thống đã hiểu)
         setMessages((prev) => [
-          ...prev, 
-          { sender: "ai", text: aiAnswer, hotels: recommendedHotels }
+          ...prev,
+          {
+            sender: "ai",
+            text: aiAnswer,
+            rooms: recommendedRooms,
+            constraints: response.data.constraints,
+          },
         ]);
       } else {
         setMessages((prev) => [...prev, { sender: "ai", text: "Xin lỗi, hệ thống đang gặp chút gián đoạn." }]);
@@ -95,15 +118,34 @@ export default function AIChatWidget() {
                 }`}>
                   <p className="leading-relaxed whitespace-pre-line">{msg.text}</p>
                   
-                  {/* Nếu có dữ liệu khách sạn gợi ý kèm theo */}
-                  {msg.hotels && msg.hotels.length > 0 && (
+                  {/* Ràng buộc cứng hệ thống đã tách được từ câu hỏi */}
+                  {msg.constraints && describeConstraints(msg.constraints).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {describeConstraints(msg.constraints).map((label) => (
+                        <span key={label} className="rounded-full bg-[#e8f2ed] px-2 py-0.5 text-[10px] font-bold text-[#173b31]">
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Hạng phòng gợi ý (đã lọc theo ràng buộc + quỹ phòng), số [n] khớp trích dẫn trong câu trả lời */}
+                  {msg.rooms && msg.rooms.length > 0 && (
                     <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
                       <p className="text-xs font-bold text-[#b7812d]">Gợi ý từ hệ thống:</p>
-                      {msg.hotels.map((h) => (
-                        <div key={h._id} className="rounded-xl border border-stone-100 bg-stone-50 p-2.5 text-xs">
-                          <p className="font-bold text-[#173b31]">{h.hotelName}</p>
-                          <p className="text-stone-500">{h.address?.city} · ⭐ {h.rating || 4.5}</p>
-                        </div>
+                      {msg.rooms.map((r) => (
+                        <Link
+                          key={r.roomId}
+                          to={`/hotels/${r.hotelId}`}
+                          onClick={() => setIsOpen(false)}
+                          className="block rounded-xl border border-stone-100 bg-stone-50 p-2.5 text-xs transition hover:border-[#173b31]/30"
+                        >
+                          <p className="font-bold text-[#173b31]">[{r.citation}] {r.title}</p>
+                          <p className="text-stone-500">
+                            {r.hotelName} · {r.city} · {Math.round(r.pricePerNight).toLocaleString("vi-VN")}đ/đêm
+                            {r.availableRooms !== null && ` · còn ${r.availableRooms} phòng`}
+                          </p>
+                        </Link>
                       ))}
                     </div>
                   )}

@@ -2,14 +2,24 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Icon from "../components/Icon";
+import StarRating from "../components/StarRating";
 import API from "../services/api";
 
 export default function ProfilePage({ onLogout }) {
   const [active, setActive] = useState("personal");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [passwordMessage, setPasswordMessage] = useState({ type: "", text: "" });
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState("");
+  const [reviewingId, setReviewingId] = useState(""); // Đơn đang mở form đánh giá
+  const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState("");
   const navigate = useNavigate();
 
   const userStr = localStorage.getItem("nestly_user");
@@ -34,6 +44,90 @@ export default function ProfilePage({ onLogout }) {
       });
   };
 
+  const openReviewForm = (bookingId) => {
+    setReviewingId(bookingId);
+    setReviewForm({ rating: 0, comment: "" });
+    setReviewError("");
+  };
+
+  const submitReview = async (event) => {
+    event.preventDefault();
+    if (reviewForm.rating < 1) {
+      setReviewError("Vui lòng chọn số sao.");
+      return;
+    }
+    setReviewSubmitting(true);
+    setReviewError("");
+    try {
+      const response = await API.post("/reviews", {
+        bookingId: reviewingId,
+        rating: reviewForm.rating,
+        comment: reviewForm.comment,
+      });
+      // Gắn review vừa tạo vào đơn để ẩn form và hiển thị kết quả ngay
+      setBookings((current) =>
+        current.map((booking) =>
+          booking._id === reviewingId
+            ? { ...booking, review: response.data.data }
+            : booking,
+        ),
+      );
+      setReviewingId("");
+    } catch (error) {
+      setReviewError(error.response?.data?.message || "Không thể gửi đánh giá.");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  // Lưu họ tên / số điện thoại qua API thật và cập nhật lại thông tin trong localStorage
+  const saveProfile = async () => {
+    setSaving(true);
+    setSaved(false);
+    setProfileError("");
+    try {
+      const response = await API.put("/users/me", {
+        fullName: formData.fullName,
+        phone: formData.phone,
+      });
+      const updated = response.data.data;
+      localStorage.setItem(
+        "nestly_user",
+        JSON.stringify({ ...currentUser, fullName: updated.fullName, phone: updated.phone }),
+      );
+      setSaved(true);
+    } catch (error) {
+      setProfileError(error.response?.data?.message || "Không thể lưu thông tin.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changePassword = async (event) => {
+    event.preventDefault();
+    setPasswordMessage({ type: "", text: "" });
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage({ type: "error", text: "Mật khẩu xác nhận không khớp." });
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      const response = await API.put("/users/me/password", {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPasswordMessage({ type: "success", text: response.data.message });
+    } catch (error) {
+      setPasswordMessage({
+        type: "error",
+        text: error.response?.data?.message || "Không thể đổi mật khẩu.",
+      });
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   const [formData, setFormData] = useState({
     fullName: currentUser?.fullName || "",
     email: currentUser?.email || "",
@@ -56,7 +150,6 @@ export default function ProfilePage({ onLogout }) {
     { id: "personal", label: "Thông tin cá nhân", icon: "users" },
     { id: "security", label: "Mật khẩu & bảo mật", icon: "shield" },
     { id: "booking", label: "Lịch sử đặt chỗ", icon: "calendar" },
-    { id: "payment", label: "Phương thức thanh toán", icon: "wallet" },
   ];
 
   const handleLogoutClick = () => {
@@ -142,13 +235,55 @@ export default function ProfilePage({ onLogout }) {
                   </label>
                 </div>
                 <div className="mt-8 flex justify-end border-t border-slate-100 pt-6">
-                  <button onClick={() => setSaved(true)} className="rounded-xl bg-[#173b31] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#245a4b]">
-                    Lưu thay đổi
+                  {profileError && (
+                    <p role="alert" className="mr-auto self-center text-sm font-semibold text-red-600">{profileError}</p>
+                  )}
+                  <button onClick={saveProfile} disabled={saving} className="rounded-xl bg-[#173b31] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#245a4b] disabled:opacity-60">
+                    {saving ? "Đang lưu..." : "Lưu thay đổi"}
                   </button>
                 </div>
               </>
             )}
             
+            {active === "security" && (
+              <form onSubmit={changePassword}>
+                <div className="border-b border-slate-100 pb-6">
+                  <h2 className="text-xl font-bold text-slate-900">Mật khẩu & bảo mật</h2>
+                  <p className="mt-2 text-sm text-slate-500">Mật khẩu mới cần ít nhất 8 ký tự.</p>
+                </div>
+                <div className="mt-7 grid max-w-md gap-5">
+                  {[
+                    ["currentPassword", "Mật khẩu hiện tại", "current-password"],
+                    ["newPassword", "Mật khẩu mới", "new-password"],
+                    ["confirmPassword", "Xác nhận mật khẩu mới", "new-password"],
+                  ].map(([name, label, autoComplete]) => (
+                    <label key={name} className="text-sm font-bold text-slate-700">
+                      {label}
+                      <input
+                        type="password"
+                        required
+                        minLength={name === "currentPassword" ? undefined : 8}
+                        autoComplete={autoComplete}
+                        value={passwordForm[name]}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, [name]: e.target.value })}
+                        className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-[#173b31]"
+                      />
+                    </label>
+                  ))}
+                </div>
+                {passwordMessage.text && (
+                  <p role="alert" className={`mt-5 text-sm font-semibold ${passwordMessage.type === "error" ? "text-red-600" : "text-emerald-700"}`}>
+                    {passwordMessage.text}
+                  </p>
+                )}
+                <div className="mt-8 flex justify-end border-t border-slate-100 pt-6">
+                  <button type="submit" disabled={passwordSaving} className="rounded-xl bg-[#173b31] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#245a4b] disabled:opacity-60">
+                    {passwordSaving ? "Đang lưu..." : "Đổi mật khẩu"}
+                  </button>
+                </div>
+              </form>
+            )}
+
             {active === "booking" && (
               <section>
                 <div className="border-b border-slate-100 pb-6">
@@ -187,6 +322,7 @@ export default function ProfilePage({ onLogout }) {
                             </div>
                             <span className={`rounded-full px-3 py-1 text-xs font-bold ${
                               booking.bookingStatus === 'Confirmed' ? 'bg-emerald-50 text-emerald-700' :
+                              booking.bookingStatus === 'Completed' ? 'bg-sky-50 text-sky-700' :
                               booking.bookingStatus === 'Canceled' ? 'bg-red-50 text-red-700' :
                               'bg-amber-50 text-amber-800'
                             }`}>
@@ -212,11 +348,72 @@ export default function ProfilePage({ onLogout }) {
                             ))}
                           </div>
 
-                          <div className="mt-auto flex justify-end border-t border-slate-100 pt-4">
-                            <p className="text-right font-bold text-[#173b31] text-lg">
+                          <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                            {booking.bookingStatus === "Completed" && !booking.review && reviewingId !== booking._id ? (
+                              <button
+                                type="button"
+                                onClick={() => openReviewForm(booking._id)}
+                                className="flex items-center gap-2 rounded-full border border-[#d09b42]/40 px-4 py-2 text-xs font-bold text-[#b7812d] transition hover:bg-amber-50"
+                              >
+                                <Icon name="star" size={14} /> Viết đánh giá
+                              </button>
+                            ) : (
+                              <span />
+                            )}
+                            <p className="ml-auto text-right font-bold text-[#173b31] text-lg">
                               {booking.totalAmount.toLocaleString("vi-VN")}₫
                             </p>
                           </div>
+
+                          {booking.review && (
+                            <div className="mt-4 rounded-xl bg-slate-50 p-4">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Đánh giá của bạn</p>
+                                <StarRating value={booking.review.rating} size={15} />
+                              </div>
+                              <p className="mt-2 text-sm text-slate-600">{booking.review.comment}</p>
+                            </div>
+                          )}
+
+                          {reviewingId === booking._id && (
+                            <form onSubmit={submitReview} className="mt-4 space-y-3 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                              <p className="text-sm font-bold text-slate-800">Kỳ nghỉ của bạn thế nào?</p>
+                              <StarRating
+                                value={reviewForm.rating}
+                                onChange={(rating) => setReviewForm({ ...reviewForm, rating })}
+                                size={26}
+                              />
+                              <textarea
+                                value={reviewForm.comment}
+                                onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
+                                rows="3"
+                                required
+                                minLength={5}
+                                maxLength={1000}
+                                placeholder="Chia sẻ trải nghiệm về phòng, dịch vụ, vị trí..."
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#173b31]"
+                              />
+                              {reviewError && (
+                                <p role="alert" className="text-sm font-semibold text-red-600">{reviewError}</p>
+                              )}
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setReviewingId("")}
+                                  className="rounded-xl px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100"
+                                >
+                                  Hủy
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={reviewSubmitting}
+                                  className="rounded-xl bg-[#173b31] px-5 py-2 text-sm font-bold text-white transition hover:bg-[#245a4b] disabled:opacity-60"
+                                >
+                                  {reviewSubmitting ? "Đang gửi..." : "Gửi đánh giá"}
+                                </button>
+                              </div>
+                            </form>
+                          )}
                         </div>
                       </article>
                     ))}

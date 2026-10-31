@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 
 const RagAnalyticsDashboard = () => {
   const [metrics, setMetrics] = useState({ totalEvaluated: 0, avgHitRate: 0, avgRecall: 0 });
@@ -9,10 +9,7 @@ const RagAnalyticsDashboard = () => {
 
   // 1. HÀM PURE FETCH: Chỉ làm nhiệm vụ gọi API trả về data, TUYỆT ĐỐI KHÔNG chứa setState
   const fetchAnalyticsData = async () => {
-    const token = localStorage.getItem('token');
-    const res = await axios.get('http://localhost:5000/api/admin/rag-analytics', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const res = await API.get('/admin/rag-analytics');
     return res.data;
   };
 
@@ -43,10 +40,7 @@ const RagAnalyticsDashboard = () => {
   const handleTriggerEvaluation = async () => {
     try {
       setIsEvaluating(true);
-      const token = localStorage.getItem('token');
-      const res = await axios.post('http://localhost:5000/api/admin/rag/evaluate', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await API.post('/admin/rag/evaluate');
       alert(res.data.message);
       
       // Tải lại dữ liệu mới sau khi AI chấm điểm xong
@@ -80,20 +74,28 @@ const RagAnalyticsDashboard = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
-          <p className="text-sm text-gray-500 font-semibold uppercase tracking-wider">Mẫu đã gán nhãn (Golden)</p>
-          <p className="text-3xl font-bold text-gray-800 mt-2">{metrics.totalEvaluated}</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-          <p className="text-sm text-gray-500 font-semibold uppercase tracking-wider">Hit Rate (Tỉ lệ trúng)</p>
-          <p className="text-3xl font-bold text-green-600 mt-2">{metrics.avgHitRate}%</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
-          <p className="text-sm text-gray-500 font-semibold uppercase tracking-wider">Recall Trung bình</p>
-          <p className="text-3xl font-bold text-purple-600 mt-2">{metrics.avgRecall}</p>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        {[
+          ['Mẫu đã gán nhãn (Golden)', metrics.totalEvaluated, 'border-blue-500 text-gray-800'],
+          [`Hit Rate@${metrics.k || 5}`, `${metrics.avgHitRate}%`, 'border-green-500 text-green-600'],
+          [`Recall@${metrics.k || 5}`, metrics.avgRecall, 'border-purple-500 text-purple-600'],
+          [`Precision@${metrics.k || 5}`, metrics.avgPrecision ?? 0, 'border-indigo-500 text-indigo-600'],
+          [`nDCG@${metrics.k || 5}`, metrics.avgNdcg ?? 0, 'border-teal-500 text-teal-600'],
+          ['MRR', metrics.mrr ?? 0, 'border-cyan-500 text-cyan-600'],
+          ['Citation correctness', metrics.citationCorrectness == null ? '—' : `${metrics.citationCorrectness}%`, 'border-amber-500 text-amber-600'],
+          ['Groundedness (Pass)', metrics.groundednessPassRate == null ? '—' : `${metrics.groundednessPassRate}%`, 'border-rose-500 text-rose-600'],
+        ].map(([label, value, color]) => (
+          <div key={label} className={`bg-white p-5 rounded-lg shadow border-l-4 ${color.split(' ')[0]}`}>
+            <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">{label}</p>
+            <p className={`text-2xl font-bold mt-2 ${color.split(' ')[1]}`}>{value}</p>
+          </div>
+        ))}
       </div>
+      <p className="mb-8 text-sm text-gray-500">
+        Nguồn câu trả lời:{' '}
+        {Object.entries(metrics.answerSources || {}).map(([source, count]) => `${source}: ${count}`).join(' · ') || '—'}
+        {metrics.avgLatencyMs != null && ` · Độ trễ trung bình: ${(metrics.avgLatencyMs / 1000).toFixed(1)}s`}
+      </p>
 
       <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
         <table className="w-full text-left border-collapse">

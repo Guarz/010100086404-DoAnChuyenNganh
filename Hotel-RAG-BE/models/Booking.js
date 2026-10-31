@@ -10,6 +10,9 @@ const bookingSchema = new mongoose.Schema({
   expiresAt: { type: Date },
   totalAmount: { type: Number, required: true },
   specialRequests: { type: String },
+  // Khóa chống trùng do client gửi (header Idempotency-Key): bấm 2 lần / mạng gửi lại
+  // cùng một yêu cầu thì chỉ tạo đúng 1 đơn và chỉ trừ quỹ phòng 1 lần.
+  idempotencyKey: { type: String },
   
   bookingStatus: {
     type: String,
@@ -27,6 +30,13 @@ const bookingSchema = new mongoose.Schema({
 }, { timestamps: true }); 
 // timestamps tự động tạo createdAt (chính là BookingDate) và updatedAt
 
-bookingSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// KHÔNG dùng TTL index: nếu MongoDB tự xóa đơn Pending thì quỹ phòng đã trừ sẽ không bao giờ được hoàn lại.
+// Cronjob (jobs/bookingCron.js) sẽ quét đơn hết hạn, chuyển sang Canceled và trả quỹ phòng.
+bookingSchema.index({ bookingStatus: 1, expiresAt: 1 });
+bookingSchema.index({ hotelId: 1, checkInDate: 1 });
+bookingSchema.index(
+  { customerId: 1, idempotencyKey: 1 },
+  { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } }
+);
 
 module.exports = mongoose.model('Booking', bookingSchema);

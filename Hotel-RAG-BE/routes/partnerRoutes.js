@@ -13,11 +13,19 @@ const {
   reviewPartnerApplication,
   getMyHotels,
   toggleRoomStatus,
-  checkInventory
+  checkInventory,
+  getPartnerBookings,
+  completePartnerBooking
 } = require('../controllers/partnerController');
 
 // Import đúng tên 2 hàm từ Middleware
 const { authenticateUser, authorizeRoles } = require('../middleware/authMiddleware');
+const { requireHotelOwnership, requireRoomOwnership } = require('../middleware/ownershipMiddleware');
+
+const partnerOnly = [authenticateUser, authorizeRoles('Partner', 'Admin')];
+const ownsHotelParam = requireHotelOwnership((req) => req.params.hotelId);
+const ownsRoomParam = requireRoomOwnership((req) => req.params.roomId);
+const ownsRoomBody = requireRoomOwnership((req) => req.body.roomTypeId);
 
 router.get('/application-status', authenticateUser, getApplicationStatus);
 router.post('/apply', authenticateUser, applyForPartner);
@@ -26,10 +34,13 @@ router.put('/applications/:userId/:decision', authenticateUser, authorizeRoles('
 
 router.post('/hotels', authenticateUser, authorizeRoles('Partner', 'Admin'), createHotel);
 router.get('/hotels', authenticateUser, authorizeRoles('Partner', 'Admin'), getMyHotels);
-router.post('/hotels/:hotelId/rooms', authenticateUser, authorizeRoles('Partner', 'Admin'), createRoomType);
-router.put('/rooms/:roomId/toggle', authenticateUser, toggleRoomStatus);
+router.post('/hotels/:hotelId/rooms', partnerOnly, ownsHotelParam, createRoomType);
+router.put('/rooms/:roomId/toggle', partnerOnly, ownsRoomParam, toggleRoomStatus);
 
-router.put('/inventory', authenticateUser, authorizeRoles('Partner', 'Admin'), updateInventory);
-router.get('/inventory/check/:roomId', authenticateUser, checkInventory);
+router.put('/inventory', partnerOnly, ownsRoomBody, updateInventory);
+router.get('/inventory/check/:roomId', partnerOnly, ownsRoomParam, checkInventory);
+
+router.get('/bookings', authenticateUser, authorizeRoles('Partner', 'Admin'), getPartnerBookings);
+router.put('/bookings/:id/complete', authenticateUser, authorizeRoles('Partner', 'Admin'), completePartnerBooking);
 
 module.exports = router;

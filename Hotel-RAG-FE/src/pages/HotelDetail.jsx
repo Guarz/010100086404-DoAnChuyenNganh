@@ -1,7 +1,8 @@
 // File: src/pages/HotelDetail.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Icon from "../components/Icon";
+import HotelReviews from "../components/HotelReviews";
 import API from "../services/api";
 
 const photos = {
@@ -47,6 +48,8 @@ export default function HotelDetail() {
   // State xử lý trạng thái
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
+  // Khóa chống đặt trùng: giữ nguyên khi khách bấm lại / mạng gửi lại cùng một lần đặt
+  const idempotencyKeyRef = useRef("");
 
   const handleBooking = async (event) => {
     event.preventDefault();
@@ -70,6 +73,9 @@ export default function HotelDetail() {
     }
 
     setBookingLoading(true);
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID();
+    }
     try {
       const response = await API.post("/bookings", {
         hotelId: hotel._id,
@@ -79,7 +85,8 @@ export default function HotelDetail() {
           { roomTypeId: selectedRoom._id, quantity: Number(roomQuantity) },
         ],
         specialRequests,
-      });
+      }, { headers: { "Idempotency-Key": idempotencyKeyRef.current } });
+      idempotencyKeyRef.current = "";
       navigate(`/checkout/${response.data.data._id}`);
     } catch (error) {
       setBookingError(
@@ -146,7 +153,16 @@ export default function HotelDetail() {
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <div className="flex items-center gap-2 text-sm font-bold text-[#d09b42]">
-              ★★★★★ <span className="text-stone-400">Nestly Tuyển chọn</span>
+              {hotel.reviewCount > 0 ? (
+                <>
+                  ★ {hotel.rating.toFixed(1)}
+                  <span className="text-stone-400">
+                    ({hotel.reviewCount} đánh giá) · Nestly Tuyển chọn
+                  </span>
+                </>
+              ) : (
+                <span className="text-stone-400">Nestly Tuyển chọn · Chưa có đánh giá</span>
+              )}
             </div>
             <h1 className="font-display mt-2 text-4xl font-semibold text-[#173b31] sm:text-5xl">
               {hotel.hotelName}
@@ -394,6 +410,8 @@ export default function HotelDetail() {
             )}
           </div>
         </div>
+
+        <HotelReviews hotelId={id} />
       </div>
     </main>
   );

@@ -4,6 +4,7 @@ const User = require("../models/User");
 const mongoose = require("mongoose");
 const RoomType = require("../models/RoomType");
 const RoomInventory = require("../models/RoomInventory");
+const Booking = require("../models/Booking");
 
 exports.getApplicationStatus = async (req, res) => {
   try {
@@ -201,19 +202,8 @@ exports.createRoomType = async (req, res) => {
       images,
     } = req.body;
 
-    // 1 & 2 & 3 & 4. Validate và Bảo mật (Giữ nguyên như cũ)
-    const hotel = await Hotel.findById(hotelId);
-    if (!hotel)
-      return res
-        .status(404)
-        .json({ success: false, message: "Không tìm thấy khách sạn" });
-
-    if (hotel.partnerId.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Bạn không có quyền thêm phòng vào khách sạn này",
-      });
-    }
+    // Quyền sở hữu đã được requireHotelOwnership kiểm tra ở route (Partner chủ KS hoặc Admin)
+    const hotel = req.hotel;
 
     if (hotel.status !== "Approved") {
       return res
@@ -247,18 +237,17 @@ exports.createRoomType = async (req, res) => {
     // PHẦN MỚI: TỰ ĐỘNG SINH QUỸ PHÒNG (INVENTORY) 30 NGÀY
     // -----------------------------------------------------
     const newInventories = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Dùng mốc 00:00 UTC giống updateInventory (new Date('YYYY-MM-DD')) và dữ liệu sẵn có,
+    // tránh 1 đêm bị 2 bản ghi (00:00Z và 17:00Z) khi Partner chỉnh giá sau đó.
+    const now = new Date();
+    const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
 
     for (let i = 0; i < 30; i++) {
-      const targetDate = new Date(today);
-      targetDate.setDate(today.getDate() + i);
+      const targetDate = new Date(todayUtc + i * 24 * 60 * 60 * 1000);
 
       newInventories.push({
-        hotelId: hotelId,
         roomTypeId: newRoomType._id, // Trỏ đúng ID của phòng vừa tạo
         date: targetDate,
-        totalRooms: totalQuantity,
         availableRooms: totalQuantity, // Mở bán full
         dynamicPrice: basePrice, // Lấy giá gốc
       });
@@ -283,10 +272,21 @@ exports.createRoomType = async (req, res) => {
 // [PUT] /api/partner/inventory/:inventoryId - Partner cập nhật giá/số lượng
 // Đảm bảo ở đầu file đã có: const RoomInventory = require('../models/RoomInventory');
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 exports.updateInventory = async (req, res) => {
   try {
-    const { roomTypeId, startDate, endDate, newPrice, newQuantity } = req.body;
+    // Quyền sở hữu hạng phòng đã được requireRoomOwnership kiểm tra -> req.room
+    const room = req.room;
+    const { startDate, endDate, newPrice, newQuantity } = req.body;
 
+    if (!DATE_ONLY.test(startDate || "") || !DATE_ONLY.test(endDate || "")) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Ngày phải có dạng YYYY-MM-DD." });
+    }
+
+    // Quỹ phòng lưu theo mốc 00:00 UTC của từng ngày
     const start = new Date(startDate);
     const end = new Date(endDate);
 
@@ -295,12 +295,30 @@ exports.updateInventory = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Ngày bắt đầu không hợp lệ." });
     }
+    if ((end - start) / (24 * 60 * 60 * 1000) > 365) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Chỉ cập nhật tối đa 1 năm mỗi lần." });
+    }
 
     const updateFields = {};
-    if (newPrice !== "" && newPrice !== undefined)
-      updateFields.dynamicPrice = Number(newPrice);
-    if (newQuantity !== "" && newQuantity !== undefined)
-      updateFields.availableRooms = Number(newQuantity);
+    if (newPrice !== "" && newPrice !== undefined) {
+      const price = Number(newPrice);
+      if (!Number.isFinite(price) || price <= 0) {
+        return res.status(400).json({ success: false, message: "Giá phải lớn hơn 0." });
+      }
+      updateFields.dynamicPrice = price;
+    }
+    if (newQuantity !== "" && newQuantity !== undefined) {
+      const quantity = Number(newQuantity);
+      if (!Number.isInteger(quantity) || quantity < 0 || quantity > room.totalQuantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Số phòng trống phải là số nguyên từ 0 đến ${room.totalQuantity}.`,
+        });
+      }
+      updateFields.availableRooms = quantity;
+    }
 
     if (Object.keys(updateFields).length === 0) {
       return res
@@ -317,10 +335,15 @@ exports.updateInventory = async (req, res) => {
     }
 
     // Dùng bulkWrite để UPSERT (Ngày nào có rồi thì Sửa, chưa có thì Tạo mới)
+    // Ngày mới tạo mà chỉ đổi giá thì mở bán đủ tổng số phòng (availableRooms là trường bắt buộc)
+    const setOnInsert =
+      updateFields.availableRooms === undefined
+        ? { availableRooms: room.totalQuantity }
+        : {};
     const bulkOps = dateArray.map((date) => ({
       updateOne: {
-        filter: { roomTypeId: roomTypeId, date: date },
-        update: { $set: updateFields },
+        filter: { roomTypeId: room._id, date: date },
+        update: { $set: updateFields, $setOnInsert: setOnInsert },
         upsert: true, // <-- "Chìa khóa" giúp tự động tạo mới quỹ phòng
       },
     }));
@@ -353,11 +376,8 @@ exports.getMyHotels = async (req, res) => {
 };
 exports.toggleRoomStatus = async (req, res) => {
   try {
-    const room = await RoomType.findById(req.params.roomId);
-    if (!room)
-      return res
-        .status(404)
-        .json({ success: false, message: "Không tìm thấy phòng" });
+    // Quyền sở hữu đã được requireRoomOwnership kiểm tra -> req.room
+    const room = req.room;
 
     // Đảo ngược trạng thái: Đang true thành false, đang false thành true
     room.isActive = room.isActive === false ? true : false;
@@ -377,17 +397,159 @@ exports.toggleRoomStatus = async (req, res) => {
 };
 exports.checkInventory = async (req, res) => {
   try {
-    const { roomId } = req.params;
     const { startDate, endDate } = req.query;
-    if (!startDate || !endDate) return res.status(400).json({ success: false });
+    if (!DATE_ONLY.test(startDate || "") || !DATE_ONLY.test(endDate || "")) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Ngày phải có dạng YYYY-MM-DD." });
+    }
 
     const inventories = await RoomInventory.find({
-      roomTypeId: roomId,
+      roomTypeId: req.room._id,
       date: { $gte: new Date(startDate), $lte: new Date(endDate) },
     }).sort("date");
 
     res.status(200).json({ success: true, data: inventories });
   } catch (error) {
     res.status(500).json({ success: false });
+  }
+};
+
+// =====================================================
+// QUẢN LÝ ĐƠN ĐẶT PHÒNG CỦA PARTNER
+// =====================================================
+
+const startOfDay = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+// [GET] /api/partner/bookings?hotelId=&status=&from=&to=
+// Trả về đơn của các khách sạn thuộc Partner + thống kê nhanh để chuẩn bị buồng.
+exports.getPartnerBookings = async (req, res) => {
+  try {
+    const { hotelId, status } = req.query;
+
+    // 1. Xác định danh sách khách sạn được phép xem (Admin xem tất cả)
+    const hotelFilter = req.user.role === "Admin" ? {} : { partnerId: req.user.id };
+    if (hotelId) {
+      if (!mongoose.isValidObjectId(hotelId)) {
+        return res.status(400).json({ success: false, message: "Mã khách sạn không hợp lệ" });
+      }
+      hotelFilter._id = hotelId;
+    }
+    const hotels = await Hotel.find(hotelFilter).select("_id hotelName");
+    const hotelIds = hotels.map((h) => h._id);
+
+    if (hotelId && hotelIds.length === 0) {
+      return res.status(403).json({ success: false, message: "Bạn không có quyền xem đơn của khách sạn này" });
+    }
+
+    // 2. Lọc trạng thái. Mặc định bỏ qua đơn Pending (chưa thanh toán, có thể tự hủy sau 5 phút)
+    const allowedStatus = ["Pending", "Confirmed", "Canceled", "Completed"];
+    const statusFilter =
+      status && status !== "all"
+        ? status.split(",").filter((s) => allowedStatus.includes(s))
+        : ["Confirmed", "Completed", "Canceled"];
+
+    const bookings = await Booking.find({
+      hotelId: { $in: hotelIds },
+      bookingStatus: { $in: statusFilter },
+    })
+      .sort({ checkInDate: 1 })
+      .populate("customerId", "fullName email phone")
+      .populate("hotelId", "hotelName")
+      .populate("bookingDetails.roomTypeId", "title")
+      .lean();
+
+    // 3. Thống kê vận hành (chỉ tính đơn Confirmed - đơn đã thanh toán, khách sẽ đến)
+    const today = startOfDay(new Date());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const summary = {
+      arrivalsToday: 0,
+      departuresToday: 0,
+      inHouse: 0,
+      upcoming7Days: 0,
+      roomsToPrepareToday: 0,
+      bookingsThisMonth: 0,
+      revenueThisMonth: 0,
+    };
+
+    for (const b of bookings) {
+      const checkIn = new Date(b.checkInDate);
+      const checkOut = new Date(b.checkOutDate);
+      const rooms = b.bookingDetails.reduce((sum, d) => sum + d.quantity, 0);
+
+      if (b.bookingStatus !== "Canceled" && new Date(b.createdAt) >= monthStart) {
+        summary.bookingsThisMonth++;
+        summary.revenueThisMonth += b.totalAmount;
+      }
+
+      if (b.bookingStatus !== "Confirmed") continue;
+
+      if (checkIn >= today && checkIn < tomorrow) {
+        summary.arrivalsToday++;
+        summary.roomsToPrepareToday += rooms;
+      }
+      if (checkOut >= today && checkOut < tomorrow) summary.departuresToday++;
+      if (checkIn < today && checkOut > today) summary.inHouse++;
+      if (checkIn >= today && checkIn < nextWeek) summary.upcoming7Days++;
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: bookings.length,
+      summary,
+      hotels,
+      data: bookings,
+    });
+  } catch (error) {
+    console.error("Lỗi lấy đơn đặt phòng của Partner:", error);
+    return res.status(500).json({ success: false, message: "Không thể tải danh sách đơn đặt phòng" });
+  }
+};
+
+// [PUT] /api/partner/bookings/:id/complete - Xác nhận khách đã trả phòng (Confirmed -> Completed)
+exports.completePartnerBooking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: "Mã đơn không hợp lệ" });
+    }
+
+    const booking = await Booking.findById(id).populate("hotelId", "partnerId");
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn đặt phòng" });
+    }
+
+    if (req.user.role !== "Admin" && booking.hotelId?.partnerId?.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: "Bạn không có quyền xử lý đơn này" });
+    }
+
+    if (booking.bookingStatus !== "Confirmed") {
+      return res.status(400).json({ success: false, message: "Chỉ đơn đã thanh toán mới có thể xác nhận trả phòng" });
+    }
+
+    if (startOfDay(booking.checkInDate) > startOfDay(new Date())) {
+      return res.status(400).json({ success: false, message: "Khách chưa đến ngày nhận phòng" });
+    }
+
+    booking.bookingStatus = "Completed";
+    await booking.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Đã xác nhận khách trả phòng. Khách có thể viết đánh giá.",
+      data: { _id: booking._id, bookingStatus: booking.bookingStatus },
+    });
+  } catch (error) {
+    console.error("Lỗi xác nhận trả phòng:", error);
+    return res.status(500).json({ success: false, message: "Không thể cập nhật đơn lúc này" });
   }
 };

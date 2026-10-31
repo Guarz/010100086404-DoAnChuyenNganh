@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import StatCard from "../components/StatCard";
+import PartnerBookings from "../components/PartnerBookings";
 import API from "../services/api";
 
 const photos = {
@@ -34,6 +35,7 @@ export default function PartnerDashboard() {
   });
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingSuccess, setPricingSuccess] = useState("");
+  const [bookingSummary, setBookingSummary] = useState(null);
 
   // Lấy thông tin user từ LocalStorage để chào đúng tên
   const user = JSON.parse(localStorage.getItem("nestly_user") || "{}");
@@ -262,6 +264,14 @@ export default function PartnerDashboard() {
       console.error(error);
     }
   };
+  // Điểm đánh giá trung bình (có trọng số theo số review) của các khách sạn
+  const reviewedHotels = myHotels.filter((hotel) => hotel.reviewCount > 0);
+  const totalReviews = reviewedHotels.reduce((sum, h) => sum + h.reviewCount, 0);
+  const avgRating = totalReviews
+    ? reviewedHotels.reduce((sum, h) => sum + h.rating * h.reviewCount, 0) /
+      totalReviews
+    : 0;
+
   return (
     <main className="min-h-screen bg-[#f7f5ef]">
       <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
@@ -382,26 +392,38 @@ export default function PartnerDashboard() {
           <StatCard
             icon="calendar"
             label="Đặt phòng tháng này"
-            value="0"
-            note="Chưa có dữ liệu"
+            value={bookingSummary ? String(bookingSummary.bookingsThisMonth) : "..."}
+            note={
+              bookingSummary
+                ? `${bookingSummary.upcoming7Days} lượt khách đến trong 7 ngày tới`
+                : "Đang tải..."
+            }
           />
           <StatCard
             icon="wallet"
-            label="Doanh thu dự kiến"
-            value="0₫"
-            note="Chưa có dữ liệu"
+            label="Doanh thu tháng này"
+            value={
+              bookingSummary
+                ? `${bookingSummary.revenueThisMonth.toLocaleString("vi-VN")}₫`
+                : "..."
+            }
+            note="Tính trên đơn đã thanh toán"
           />
           <StatCard
             icon="bed"
-            label="Tỷ lệ lấp đầy"
-            value="0%"
-            note="Chưa có dữ liệu"
+            label="Khách đang lưu trú"
+            value={bookingSummary ? String(bookingSummary.inHouse) : "..."}
+            note={
+              bookingSummary
+                ? `Hôm nay: ${bookingSummary.arrivalsToday} nhận · ${bookingSummary.departuresToday} trả phòng`
+                : "Đang tải..."
+            }
           />
           <StatCard
             icon="star"
             label="Điểm đánh giá"
-            value="0.0"
-            note="Chưa có đánh giá"
+            value={totalReviews ? avgRating.toFixed(1) : "0.0"}
+            note={totalReviews ? `Từ ${totalReviews} lượt đánh giá` : "Chưa có đánh giá"}
           />
         </div>
 
@@ -473,6 +495,10 @@ export default function PartnerDashboard() {
               ))
             )}
           </section>
+        </div>
+
+        <div className="mt-8">
+          <PartnerBookings onSummaryChange={setBookingSummary} />
         </div>
       </div>
 

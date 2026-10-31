@@ -89,12 +89,14 @@ Mở URL Vite in trong Terminal, thông thường là `http://localhost:5173`. F
 
 ## Cơ chế RAG tìm khách sạn
 
-RAG kết hợp tìm tài liệu liên quan trong database với mô hình sinh câu trả lời:
+Trợ lý là **RAG Chatbot** (không phải AI Agent — không có tool registry/planning/multi-step). Chi tiết: [`docs/rag-pipeline.md`](docs/rag-pipeline.md).
 
-1. **Nạp dữ liệu / tạo embedding:** khi quản trị viên duyệt khách sạn qua API, backend ghép tên, mô tả, tiện ích và địa chỉ rồi dùng Gemini `gemini-embedding-001` chuyển nội dung thành vector. Vector lưu ở trường `embedding` của tài liệu khách sạn trong MongoDB.
-2. **Nhận câu hỏi:** widget trợ lý gửi câu hỏi tới `POST /api/ai/search`.
-3. **Truy xuất khách sạn:** backend chuyển câu hỏi thành vector, dùng Atlas Search tìm tối đa 3 khách sạn gần nghĩa trong trường `embedding`, sau đó chỉ giữ khách sạn có trạng thái `Approved`.
-4. **Sinh câu trả lời:** backend đưa câu hỏi cùng dữ liệu khách sạn tìm được cho Gemini tạo đoạn tư vấn bằng tiếng Việt. API trả về nội dung tư vấn và danh sách khách sạn gợi ý.
+1. **Tạo embedding:** khi Admin duyệt khách sạn, backend ghép tên, mô tả, tiện ích, địa chỉ và dùng Gemini `gemini-embedding-001` tạo vector 3072 chiều, lưu ở trường `embedding`.
+2. **Tách ràng buộc cứng** từ câu hỏi (`services/queryConstraintParser.js`): thành phố, ngày ở, số khách, số phòng, ngân sách, tiện nghi bắt buộc, loại phòng. Câu ngoài phạm vi/độc hại bị guardrail từ chối.
+3. **Lọc có cấu trúc + kiểm tra quỹ phòng** (`services/ragRetrieval.js`): chỉ giữ hạng phòng đang bán của KS đã duyệt, đúng ràng buộc, còn đủ phòng **mọi đêm** và giá theo ngày nằm trong ngân sách.
+4. **Xếp hạng ngữ nghĩa** trên tập hợp lệ: 0.7 × cosine(vector câu hỏi, vector KS) + 0.3 × điểm từ khóa.
+5. **Sinh câu trả lời:** Gemini chỉ dùng các lựa chọn đã đánh số và phải trích dẫn `[n]`; nếu Gemini lỗi/hết hạn mức thì trả câu trả lời dựng từ dữ liệu.
+6. **Ghi log** vào `raglogs` (ràng buộc, thứ tự truy xuất, số ứng viên từng bước, độ trễ) để đánh giá ở trang Admin → RAG Analytics (`/admin/rag`).
 
 ### Cấu hình Atlas Vector Search
 
@@ -154,29 +156,73 @@ Chỉ các khách sạn đã có embedding mới phù hợp với tìm kiếm ve
 
 ## API chính
 
-| Method | Endpoint | Mô tả |
-| --- | --- | --- |
-| `GET` | `/api/health` | Kiểm tra API đang chạy |
-| `GET` | `/api/hotels` | Lấy danh sách khách sạn đã duyệt |
-| `GET` | `/api/hotels/:id` | Lấy chi tiết khách sạn |
-| `GET` | `/api/hotels/:id/rooms` | Lấy loại phòng của khách sạn |
-| `POST` | `/api/auth/register` | Đăng ký |
-| `POST` | `/api/auth/login` | Đăng nhập, nhận JWT |
-| `POST` | `/api/ai/search` | Tìm kiếm và tư vấn khách sạn bằng RAG |
-| `POST` | `/api/bookings` | Tạo booking (cần JWT) |
-| `GET` | `/api/bookings/mine` | Lịch sử booking của tài khoản hiện tại (cần JWT) |
-| `POST` | `/api/payments/demo/:bookingId` | Mô phỏng thanh toán và xác nhận booking của tài khoản hiện tại (cần JWT) |
-| `GET` | `/api/admin/users` | Danh sách người dùng, không trả về mật khẩu (cần JWT Admin) |
-| `PUT` | `/api/admin/users/:userId/status` | Khóa hoặc mở khóa tài khoản (cần JWT Admin) |
-| `GET` | `/api/admin/hotels/pending` | Lấy khách sạn chờ duyệt |
-| `PUT` | `/api/admin/hotels/:id/approve` | Duyệt khách sạn và tạo embedding |
-| `POST` | `/api/partner/hotels` | Tạo khách sạn đối tác |
-| `POST` | `/api/partner/hotels/:hotelId/rooms` | Tạo loại phòng |
-| `PUT` | `/api/partner/inventory/:inventoryId` | Cập nhật tồn kho |
-| `GET` | `/api/partner/application-status` | Trạng thái yêu cầu làm shop (cần JWT) |
-| `POST` | `/api/partner/apply` | Gửi yêu cầu làm shop (cần JWT) |
-| `GET` | `/api/partner/applications/pending` | Danh sách yêu cầu làm shop chờ duyệt (cần JWT Admin) |
-| `PUT` | `/api/partner/applications/:userId/:decision` | Duyệt/từ chối yêu cầu (`approve` hoặc `reject`, cần JWT Admin) |
+Ma trận phân quyền đầy đủ của mọi endpoint: [`docs/security-rbac.md`](docs/security-rbac.md).
+
+| Method | Endpoint | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/api/health` | Công khai | Kiểm tra API |
+| `GET` | `/api/hotels`, `/api/hotels/search`, `/api/hotels/featured` | Công khai | Danh sách / tìm kiếm / top 8 khách sạn |
+| `GET` | `/api/hotels/:id`, `/api/hotels/:id/rooms` | Công khai | Chi tiết KS, hạng phòng + giá động theo ngày |
+| `POST` | `/api/auth/register`, `/api/auth/login` | Công khai | Đăng ký, đăng nhập (JWT) |
+| `GET/PUT` | `/api/users/me`, `PUT /api/users/me/password` | Đăng nhập | Hồ sơ cá nhân, đổi mật khẩu |
+| `POST` | `/api/ai/search` | Công khai | Trợ lý RAG |
+| `POST` | `/api/bookings` | Đăng nhập | Tạo đơn, giữ chỗ 5 phút; header `Idempotency-Key` chống đặt trùng |
+| `GET` | `/api/bookings/my-bookings`, `/api/bookings/:id` | Chủ đơn | Lịch sử / chi tiết đơn |
+| `PUT` | `/api/bookings/:id/cancel` | Chủ đơn | Hủy đơn chưa thanh toán, hoàn quỹ phòng |
+| `POST` | `/api/payments/vnpay/create_url` | Chủ đơn | Tạo link thanh toán VNPay |
+| `GET` | `/api/payments/vnpay/return` | Chữ ký VNPay | Xác nhận kết quả thanh toán, ghi `payments` (Success/Failed) |
+| `GET` | `/api/reviews/hotel/:hotelId` | Công khai | Đánh giá của khách sạn |
+| `POST` | `/api/reviews` | Chủ đơn `Completed` | Viết đánh giá 1–5 sao |
+| `POST/GET` | `/api/partner/hotels` | Partner, Admin | Tạo / xem khách sạn của mình |
+| `POST` | `/api/partner/hotels/:hotelId/rooms` | Chủ KS, Admin | Tạo hạng phòng |
+| `PUT` | `/api/partner/rooms/:roomId/toggle` | Chủ KS, Admin | Khóa / mở bán hạng phòng |
+| `PUT` | `/api/partner/inventory` | Chủ KS, Admin | Cập nhật giá / số phòng trống theo khoảng ngày |
+| `GET` | `/api/partner/bookings` | Chủ KS, Admin | Đơn của KS + thống kê nhận/trả phòng |
+| `PUT` | `/api/partner/bookings/:id/complete` | Chủ KS, Admin | Xác nhận khách trả phòng |
+| `POST/GET` | `/api/partner/apply`, `/api/partner/application-status` | Đăng nhập | Đăng ký làm đối tác |
+| `GET/PUT` | `/api/partner/applications/...` | Admin | Duyệt / từ chối đối tác |
+| `GET/PUT` | `/api/admin/users`, `/api/admin/users/:userId/status` | Admin | Quản lý / khóa người dùng |
+| `GET` | `/api/admin/hotels?status=` | Admin | Toàn bộ KS theo trạng thái |
+| `PUT` | `/api/admin/hotels/:id/status` | Admin | Duyệt (`Approved`, tạo embedding) / từ chối (`Rejected`) |
+| `GET/POST` | `/api/admin/rag-analytics`, `/api/admin/rag/evaluate` | Admin | Chỉ số RAG, chấm Groundedness |
+
+## Kiểm thử và đánh giá
+
+### Test API (backend)
+
+Test **xóa sạch database** được chỉ định, nên chỉ chạy trên MongoDB riêng có tên kết thúc bằng `_test` (script tự từ chối nếu không đúng). Ví dụ với MongoDB cài trên máy:
+
+```powershell
+$env:TEST_MONGO_URI = "mongodb://127.0.0.1:27017/hotelrag_test"
+npm test
+```
+
+Bộ test gồm: phân quyền 401/403 và ownership (`tests/rbac.test.js`), đặt phòng đồng thời / rollback / idempotency (`tests/booking-concurrency.test.js`), pipeline RAG với ràng buộc cứng (`tests/rag-pipeline.test.js`).
+
+### Đánh giá RAG
+
+```powershell
+npm run rag:benchmark   # keyword vs vector vs pipeline trên golden_dataset.json -> docs/rag-benchmark.md
+npm run rag:replay      # (cần API đang chạy) gửi Golden Query Set qua /api/ai/search, gắn nhãn vào raglogs
+```
+
+### Dữ liệu mock
+
+```powershell
+npm run seed:mock                  # chuẩn hóa dữ liệu + thêm user/booking/payment/review mock (chạy lại không trùng)
+node Hotel-RAG-BE/scripts/seedMockData.js --embeddings   # thêm: tạo lại vector AI bị thiếu (gọi Gemini)
+```
+
+### Tài liệu cho báo cáo
+
+| Tài liệu | Nội dung |
+| --- | --- |
+| [`docs/progress-and-scope.md`](docs/progress-and-scope.md) | Phạm vi, Task–Owner–Deadline–%–Evidence |
+| [`docs/rag-pipeline.md`](docs/rag-pipeline.md) | Thuật ngữ (RAG, không phải Agent), pipeline ràng buộc cứng |
+| [`docs/rag-benchmark.md`](docs/rag-benchmark.md) | Benchmark + error analysis |
+| [`docs/booking-concurrency.md`](docs/booking-concurrency.md) | Chống oversell, rollback, idempotency |
+| [`docs/security-rbac.md`](docs/security-rbac.md) | Ma trận phân quyền, lỗ hổng đã vá |
+| [`docs/implementation-status.md`](docs/implementation-status.md) | Implemented / Prototype / Mock / Planned |
 
 ## Kiểm tra frontend
 
@@ -191,6 +237,6 @@ npm run build
 
 - URL `localhost` chỉ dùng khi frontend và backend chạy trên cùng máy phát triển. Khi deploy, cập nhật `baseURL` frontend thành địa chỉ API thật.
 - Không commit `.env`, mật khẩu database, JWT secret hoặc Gemini API key.
-- Thanh toán demo chỉ để trình diễn; không kết nối ngân hàng/cổng thanh toán và không xác nhận đã thu tiền thật.
-- Booking chỉ tạo được khi tồn kho có đủ bản ghi cho toàn bộ ngày lưu trú. Tạo booking sẽ trừ tồn kho; hiện chưa có cơ chế tự hủy đơn Pending hoặc tự hoàn tồn kho khi khách không thanh toán.
-- API booking và lịch sử booking có JWT; các API admin/partner hiện dùng middleware xác thực JWT và kiểm tra role ở backend.
+- VNPay đang ở mức Prototype: cần cấu hình `VNP_TMN_CODE`, `VNP_HASH_SECRET`, `VNP_URL`, `VNP_RETURN_URL` và kiểm thử trên sandbox trước khi trình diễn.
+- Booking chỉ tạo được khi tồn kho có đủ bản ghi cho toàn bộ ngày lưu trú. Tạo booking trừ tồn kho ngay (giữ chỗ 5 phút); cronjob mỗi phút hủy đơn Pending quá hạn và hoàn tồn kho.
+- Mọi API cần quyền đều kiểm tra JWT, vai trò và quyền sở hữu ở backend (`authMiddleware.js`, `ownershipMiddleware.js`).

@@ -8,6 +8,11 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 exports.register = async (req, res) => {
   try {
     const { fullName, email, password, phone } = req.body;
+    if (typeof fullName !== 'string' || fullName.trim().length < 2 ||
+        typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+        typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập họ tên, email hợp lệ và mật khẩu từ 8 ký tự' });
+    }
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ success: false, message: 'Email đã tồn tại' });
 
@@ -33,6 +38,9 @@ exports.login = async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ success: false, message: 'Sai email hoặc mật khẩu' });
+    if (user.status === 'Locked') {
+      return res.status(403).json({ success: false, message: 'Tài khoản đã bị khóa, vui lòng liên hệ quản trị viên' });
+    }
 
     // Tạo JWT Token (Ký bằng khóa bí mật trong file .env: JWT_SECRET=KhoaBiMatCuaBan)
     const token = jwt.sign(

@@ -3,7 +3,14 @@ const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const RoomInventory = require('../models/RoomInventory');
 const RoomType = require('../models/RoomType');
+const Review = require('../models/Review');
 const mongoose = require('mongoose');
+const {
+  reserveInventory,
+  releaseInventory,
+  cancelPendingBooking,
+  BOOKING_HOLD_MINUTES
+} = require('../services/inventoryService');
 
 const parseDateOnly = (value) => {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -24,6 +31,20 @@ const parseDateOnly = (value) => {
   return date;
 };
 
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,100}$/;
+
+// Trả lại đơn đã tạo trước đó với cùng Idempotency-Key (nếu cùng nội dung yêu cầu)
+const replayIdempotentBooking = (res, existing, hotelId, checkIn, checkOut) => {
+  const sameRequest =
+    existing.hotelId.toString() === String(hotelId) &&
+    existing.checkInDate.getTime() === checkIn.getTime() &&
+    existing.checkOutDate.getTime() === checkOut.getTime();
+  if (!sameRequest) {
+    return res.status(409).json({ success: false, message: 'Idempotency-Key đã được dùng cho một yêu cầu đặt phòng khác' });
+  }
+  return res.status(200).json({ success: true, replayed: true, message: 'Đơn đã được tạo trước đó', data: existing });
+};
+
 // [POST] /api/bookings
 exports.createBooking = async (req, res) => {
   try {
@@ -34,6 +55,14 @@ exports.createBooking = async (req, res) => {
       bookingDetails, // Mảng: [{ roomTypeId, quantity }]
       specialRequests 
     } = req.body;
+    const idempotencyKey = req.get('Idempotency-Key');
+
+    if (idempotencyKey !== undefined && !IDEMPOTENCY_KEY.test(idempotencyKey)) {
+      return res.status(400).json({ success: false, message: 'Idempotency-Key không hợp lệ' });
+    }
+    if (!mongoose.isValidObjectId(hotelId)) {
+      return res.status(400).json({ success: false, message: 'Mã khách sạn không hợp lệ' });
+    }
 
     if (!Array.isArray(bookingDetails) || bookingDetails.length === 0) {
       return res.status(400).json({ success: false, message: 'Vui lòng chọn ít nhất một loại phòng' });
@@ -54,10 +83,15 @@ exports.createBooking = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Ngày Check-out phải sau ngày Check-in' });
     }
 
+    if (idempotencyKey) {
+      const existing = await Booking.findOne({ customerId: req.user.id, idempotencyKey });
+      if (existing) return replayIdempotentBooking(res, existing, hotelId, checkIn, checkOut);
+    }
+
     let totalAmount = 0;
     const processedDetails = [];
 
-    // Check availability and calculate the quote without reserving inventory.
+    // Bước 1: Kiểm tra quỹ phòng và tính tiền
     for (const item of bookingDetails) {
       const { roomTypeId, quantity } = item;
       if (!Number.isInteger(quantity) || quantity < 1) {
@@ -103,25 +137,41 @@ exports.createBooking = async (req, res) => {
         roomTypeId: roomType._id,
         quantity: quantity,
         unitPrice: roomType.basePrice, // Lưu lại giá gốc tham khảo
-        totalNights: totalNights
+        totalNights: totalNights,
+        title: roomType.title // Chỉ dùng cho thông báo lỗi, không lưu vào DB
       });
 
     }
 
-    // Keep unpaid checkout requests temporarily; they are not reservations.
+    // Bước 2: Trừ quỹ phòng ngay lập tức (giữ chỗ 5 phút chờ thanh toán).
+    // Nếu khách không thanh toán, cronjob sẽ hủy đơn và hoàn quỹ.
+    await reserveInventory(processedDetails, checkIn, checkOut);
+
     const newBooking = new Booking({
       customerId: req.user.id,
       hotelId,
       checkInDate: checkIn,
       checkOutDate: checkOut,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      expiresAt: new Date(Date.now() + BOOKING_HOLD_MINUTES * 60 * 1000),
       totalAmount,
       specialRequests,
+      idempotencyKey,
       bookingStatus: 'Pending',
       bookingDetails: processedDetails
     });
 
-    await newBooking.save();
+    try {
+      await newBooking.save();
+    } catch (saveError) {
+      // Lưu đơn thất bại -> trả lại quỹ vừa trừ
+      await releaseInventory(newBooking);
+      // 2 request cùng Idempotency-Key chạy song song: request thua trả về đơn của request thắng
+      if (saveError.code === 11000 && idempotencyKey) {
+        const existing = await Booking.findOne({ customerId: req.user.id, idempotencyKey });
+        if (existing) return replayIdempotentBooking(res, existing, hotelId, checkIn, checkOut);
+      }
+      throw saveError;
+    }
 
     res.status(201).json({
       success: true,
@@ -156,9 +206,17 @@ exports.getMyBookings = async (req, res) => {
       }
     }
 
+    const reviews = await Review.find({
+      bookingId: { $in: bookings.map((booking) => booking._id) }
+    }).select('bookingId rating comment createdAt');
+    const reviewByBookingId = new Map(
+      reviews.map((review) => [review.bookingId.toString(), review])
+    );
+
     const data = bookings.map((booking) => ({
       ...booking.toObject(),
-      payment: paymentByBookingId.get(booking._id.toString()) || null
+      payment: paymentByBookingId.get(booking._id.toString()) || null,
+      review: reviewByBookingId.get(booking._id.toString()) || null
     }));
 
     return res.status(200).json({ success: true, data });
@@ -184,9 +242,10 @@ exports.getBookingById = async (req, res) => {
 
     if (booking.bookingStatus === 'Pending') {
       const expiresAt = booking.expiresAt ||
-        new Date(booking.createdAt.getTime() + 5 * 60 * 1000);
+        new Date(booking.createdAt.getTime() + BOOKING_HOLD_MINUTES * 60 * 1000);
       if (expiresAt <= new Date()) {
-        await Booking.deleteOne({ _id: booking._id, bookingStatus: 'Pending' });
+        // Không chờ cronjob: hủy và hoàn quỹ ngay khi khách mở lại trang Checkout
+        await cancelPendingBooking({ _id: booking._id });
         return res.status(410).json({
           success: false,
           message: "Đơn tạm đã hết hạn và được hủy. Vui lòng đặt lại nếu bạn vẫn muốn tiếp tục."
@@ -205,9 +264,13 @@ exports.getBookingById = async (req, res) => {
   }
 };
 
-// [PUT] /api/bookings/:id/cancel - Xóa đơn tạm chưa thanh toán
+// [PUT] /api/bookings/:id/cancel - Hủy đơn tạm chưa thanh toán và hoàn quỹ phòng
 exports.cancelBooking = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn đặt phòng" });
+    }
+
     const booking = await Booking.findById(req.params.id);
     
     if (!booking || booking.customerId.toString() !== req.user.id) {
@@ -217,14 +280,18 @@ exports.cancelBooking = async (req, res) => {
     if (booking.bookingStatus !== 'Pending') {
       return res.status(400).json({
         success: false,
-        message: "Chỉ có thể xóa đơn tạm chưa thanh toán"
+        message: "Chỉ có thể hủy đơn tạm chưa thanh toán"
       });
     }
 
-    await Booking.deleteOne({ _id: booking._id, bookingStatus: 'Pending' });
+    const canceled = await cancelPendingBooking({ _id: booking._id, customerId: req.user.id });
+    if (!canceled) {
+      return res.status(409).json({ success: false, message: "Đơn đã được xử lý trước đó" });
+    }
+
     res.status(200).json({
       success: true,
-      message: "Đã xóa đơn tạm. Số lượng phòng không bị thay đổi."
+      message: "Đã hủy đơn tạm và hoàn lại quỹ phòng."
     });
   } catch (error) {
     console.error("Lỗi hủy đơn:", error);

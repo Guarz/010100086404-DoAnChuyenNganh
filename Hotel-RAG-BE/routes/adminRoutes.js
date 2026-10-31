@@ -7,7 +7,10 @@ const {
   getUsers,
   updateUserStatus,
   getPendingHotels,
+  getHotels,
+  updateHotelStatus,
   approveHotel,
+  rejectHotel,
   getRagAnalytics,      // Đã bổ sung
   evaluateGroundedness  // Đã bổ sung
 } = require('../controllers/adminController');
@@ -24,7 +27,10 @@ router.put('/users/:userId/status', authenticateUser, authorizeRoles('Admin'), u
 
 // --- QUẢN LÝ KHÁCH SẠN ---
 router.get('/hotels/pending', authenticateUser, authorizeRoles('Admin'), getPendingHotels);
+router.get('/hotels', authenticateUser, authorizeRoles('Admin'), getHotels);
+router.put('/hotels/:id/status', authenticateUser, authorizeRoles('Admin'), updateHotelStatus);
 router.put('/hotels/:id/approve', authenticateUser, authorizeRoles('Admin'), approveHotel);
+router.put('/hotels/:id/reject', authenticateUser, authorizeRoles('Admin'), rejectHotel);
 
 // --- RAG AI ANALYTICS ---
 // Thay verifyAdmin bằng authenticateUser, authorizeRoles('Admin')
