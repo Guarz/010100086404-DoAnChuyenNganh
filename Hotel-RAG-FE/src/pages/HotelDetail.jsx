@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Icon from "../components/Icon";
 import HotelReviews from "../components/HotelReviews";
+import PhotoGallery from "../components/PhotoGallery";
 import API from "../services/api";
 
 const photos = {
@@ -33,6 +34,8 @@ export default function HotelDetail() {
 
   // Form Đặt phòng tự động lấy dữ liệu từ URL hoặc gán mặc định
   const [bookingRoomId, setBookingRoomId] = useState("");
+  const [gallery, setGallery] = useState(null); // { title, images, startIndex }
+  const [expandedRoomId, setExpandedRoomId] = useState("");
   const [checkInDate, setCheckInDate] = useState(
     () => searchCheckIn || toDateInputValue(new Date()),
   );
@@ -152,7 +155,7 @@ export default function HotelDetail() {
 
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <div className="flex items-center gap-2 text-sm font-bold text-[#d09b42]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold text-[#d09b42]">
               {hotel.reviewCount > 0 ? (
                 <>
                   ★ {hotel.rating.toFixed(1)}
@@ -164,10 +167,10 @@ export default function HotelDetail() {
                 <span className="text-stone-400">Nestly Tuyển chọn · Chưa có đánh giá</span>
               )}
             </div>
-            <h1 className="font-display mt-2 text-4xl font-semibold text-[#173b31] sm:text-5xl">
+            <h1 className="font-display mt-2 text-3xl font-semibold text-[#173b31] sm:text-5xl">
               {hotel.hotelName}
             </h1>
-            <p className="mt-3 flex items-center gap-2 text-sm text-stone-500">
+            <p className="mt-3 flex items-start gap-2 text-sm text-stone-500">
               <Icon name="location" size={16} /> {hotel.address?.street},{" "}
               {hotel.address?.city}, {hotel.address?.province}
             </p>
@@ -175,49 +178,49 @@ export default function HotelDetail() {
         </div>
 
         {/* THƯ VIỆN ẢNH */}
-        <section className="mt-8 grid h-[520px] grid-cols-4 grid-rows-2 gap-3 overflow-hidden rounded-2xl">
-          <img
-            src={hotel.images?.[0] || photos.hero}
-            alt="Ảnh chính"
-            className="col-span-4 row-span-1 size-full object-cover md:col-span-2 md:row-span-2"
-          />
-          <img
-            src={
-              hotel.images?.[1] ||
-              "https://images.unsplash.com/photo-1569335468885-d7d1a41e570c?w=900"
-            }
-            alt="Ảnh phụ 1"
-            className="hidden size-full object-cover md:block"
-          />
-          <img
-            src={
-              hotel.images?.[2] ||
-              "https://images.unsplash.com/photo-1678913308053-316cee77afe9?w=900"
-            }
-            alt="Ảnh phụ 2"
-            className="hidden size-full object-cover md:block"
-          />
-          <img
-            src={
-              hotel.images?.[3] ||
-              "https://images.unsplash.com/photo-1772006807170-5750a2aa3713?w=900"
-            }
-            alt="Ảnh phụ 3"
-            className="hidden size-full object-cover md:block"
-          />
-          <div className="relative hidden md:block">
-            <img
-              src={hotel.images?.[4] || photos.hero}
-              alt="Ảnh phụ 4"
-              className="size-full object-cover"
-            />
-            <button className="absolute bottom-4 right-4 rounded-full bg-white px-4 py-2 text-xs font-bold shadow transition hover:bg-stone-100">
-              Xem tất cả {hotel.images?.length || 5} ảnh
+        <section className="relative mt-6 grid h-64 grid-cols-4 gap-3 overflow-hidden rounded-2xl sm:h-80 md:mt-8 md:h-[520px] md:grid-rows-2">
+          {[0, 1, 2, 3, 4].map((i) => {
+            const fallback = [
+              photos.hero,
+              "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900",
+              "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=900",
+              "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=900",
+              "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=900",
+            ][i];
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() =>
+                  hotel.images?.length &&
+                  setGallery({ title: hotel.hotelName, images: hotel.images, startIndex: Math.min(i, hotel.images.length - 1) })
+                }
+                className={
+                  i === 0
+                    ? "col-span-4 row-span-1 md:col-span-2 md:row-span-2"
+                    : "hidden md:block"
+                }
+              >
+                <img
+                  src={hotel.images?.[i] || fallback}
+                  alt={i === 0 ? "Ảnh chính" : `Ảnh phụ ${i}`}
+                  className="size-full object-cover transition hover:brightness-95"
+                />
+              </button>
+            );
+          })}
+          {hotel.images?.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setGallery({ title: hotel.hotelName, images: hotel.images, startIndex: 0 })}
+              className="absolute bottom-4 right-4 rounded-full bg-white px-4 py-2 text-xs font-bold shadow transition hover:bg-stone-100"
+            >
+              Xem tất cả {hotel.images.length} ảnh
             </button>
-          </div>
+          )}
         </section>
 
-        <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_380px]">
+        <div className="mt-8 grid gap-10 md:mt-12 lg:grid-cols-[1fr_380px] lg:gap-12">
           {/* CỘT TRÁI: THÔNG TIN KS */}
           <div>
             <div className="flex items-start justify-between border-b border-stone-200 pb-8">
@@ -275,7 +278,14 @@ export default function HotelDetail() {
                   className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm hover:shadow-md transition"
                 >
                   <div className="flex flex-col gap-4">
-                    <div className="aspect-[16/9] w-full rounded-xl overflow-hidden bg-stone-100 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        room.images?.length &&
+                        setGallery({ title: room.title, images: room.images, startIndex: 0 })
+                      }
+                      className="relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-xl bg-stone-100"
+                    >
                       <img
                         src={
                           room.images?.[0] ||
@@ -284,17 +294,57 @@ export default function HotelDetail() {
                         alt={room.title}
                         className="size-full object-cover"
                       />
-                    </div>
+                      {room.images?.length > 1 && (
+                        <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white">
+                          {room.images.length} ảnh
+                        </span>
+                      )}
+                    </button>
 
                     <div>
                       <h3 className="text-xl font-bold text-[#173b31]">
                         {room.title}
                       </h3>
                       <div className="flex flex-wrap gap-2 mt-3">
-                        <span className="text-xs font-semibold bg-stone-100 px-2 py-1 rounded">
-                          Tối đa {room.maxAdults} NL, {room.maxChildren} TE
+                        <span className="flex items-center gap-1 rounded bg-stone-100 px-2 py-1 text-xs font-semibold">
+                          <Icon name="users" size={13} /> Tối đa {room.maxAdults} người lớn, {room.maxChildren ?? 0} trẻ em
                         </span>
                       </div>
+
+                      {room.description && (
+                        <p
+                          className={`mt-3 text-sm leading-6 text-stone-600 ${expandedRoomId === room._id ? "" : "line-clamp-2"}`}
+                        >
+                          {room.description}
+                        </p>
+                      )}
+
+                      {room.amenities?.length > 0 && (
+                        <ul className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5" aria-label="Tiện nghi phòng">
+                          {(expandedRoomId === room._id ? room.amenities : room.amenities.slice(0, 6)).map((item) => (
+                            <li key={item} className="flex items-center gap-1.5 text-xs font-semibold text-stone-600">
+                              <span className="shrink-0 text-[#b7812d]">
+                                <Icon name="check" size={14} />
+                              </span>
+                              <span className="truncate">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {(room.amenities?.length > 6 || room.description?.length > 90) && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedRoomId(expandedRoomId === room._id ? "" : room._id)}
+                          className="mt-2 text-xs font-bold text-[#173b31] underline"
+                        >
+                          {expandedRoomId === room._id
+                            ? "Thu gọn"
+                            : room.amenities?.length > 6
+                              ? `Xem tất cả ${room.amenities.length} tiện nghi`
+                              : "Xem thêm"}
+                        </button>
+                      )}
 
                       <div className="flex flex-wrap items-end justify-between mt-5 pt-5 border-t border-stone-100 gap-4">
                         <div>
@@ -310,8 +360,8 @@ export default function HotelDetail() {
                             </strong>
                           </p>
                           {room.availableRooms !== undefined && (
-                            <p className="mt-1 text-xs font-bold text-red-500">
-                              Chỉ còn {room.availableRooms} phòng
+                            <p className={`mt-1 text-xs font-bold ${room.availableRooms <= 3 ? "text-red-500" : "text-emerald-700"}`}>
+                              {room.availableRooms <= 3 ? "Chỉ còn" : "Còn"} {room.availableRooms} phòng
                             </p>
                           )}
                         </div>
@@ -413,6 +463,15 @@ export default function HotelDetail() {
 
         <HotelReviews hotelId={id} />
       </div>
+
+      {gallery && (
+        <PhotoGallery
+          title={gallery.title}
+          images={gallery.images}
+          startIndex={gallery.startIndex}
+          onClose={() => setGallery(null)}
+        />
+      )}
     </main>
   );
 }

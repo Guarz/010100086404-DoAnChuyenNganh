@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import StatCard from "../components/StatCard";
 import PartnerBookings from "../components/PartnerBookings";
+import AmenityPicker from "../components/AmenityPicker";
+import HotelEditModal from "../components/partner/HotelEditModal";
+import RoomManagerModal from "../components/partner/RoomManagerModal";
+import {
+  HOTEL_AMENITY_SUGGESTIONS,
+  ROOM_AMENITY_SUGGESTIONS,
+} from "../constants/amenities";
 import API from "../services/api";
 
 const photos = {
@@ -9,6 +16,11 @@ const photos = {
 
 export default function PartnerDashboard() {
   const [submitted, setSubmitted] = useState(false);
+  const [hotelAmenities, setHotelAmenities] = useState([]);
+  const [roomAmenities, setRoomAmenities] = useState([]);
+  const [editingHotel, setEditingHotel] = useState(null);
+  const [roomsHotel, setRoomsHotel] = useState(null);
+  const [notice, setNotice] = useState("");
   const [myHotels, setMyHotels] = useState([]);
   const [hotelsLoading, setHotelsLoading] = useState(true);
 
@@ -76,10 +88,7 @@ export default function PartnerDashboard() {
         totalQuantity: Number(roomFormData.totalQuantity),
         maxAdults: Number(roomFormData.maxAdults),
         maxChildren: Number(roomFormData.maxChildren),
-        amenities: roomFormData.amenities
-          .split(",")
-          .map((i) => i.trim())
-          .filter(Boolean),
+        amenities: roomAmenities,
         images: roomFormData.images
           .split("\n")
           .map((i) => i.trim())
@@ -106,6 +115,7 @@ export default function PartnerDashboard() {
           amenities: "",
           images: "",
         });
+        setRoomAmenities([]);
 
         // Đóng Modal sau 3 giây
         setTimeout(() => {
@@ -209,10 +219,7 @@ export default function PartnerDashboard() {
           city: formData.city,
           province: formData.province,
         },
-        amenities: formData.amenities
-          .split(",")
-          .map((i) => i.trim())
-          .filter(Boolean),
+        amenities: hotelAmenities,
         images: formData.images
           .split("\n")
           .map((i) => i.trim())
@@ -232,6 +239,7 @@ export default function PartnerDashboard() {
           amenities: "",
           images: "",
         });
+        setHotelAmenities([]);
 
         setMyHotels((prev) => [response.data.data, ...prev]);
 
@@ -352,14 +360,26 @@ export default function PartnerDashboard() {
                 />
               </label>
               <label className="sm:col-span-2 block text-sm font-bold text-stone-700">
-                Tiện ích (cách nhau dấu phẩy){" "}
-                <input
-                  name="amenities"
-                  value={formData.amenities}
+                Mô tả chỗ nghỉ{" "}
+                <textarea
+                  name="description"
+                  value={formData.description}
                   onChange={handleChange}
-                  className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                  required
+                  minLength={10}
+                  rows="3"
+                  placeholder="Vị trí, phong cách, điểm nổi bật..."
+                  className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal"
                 />
               </label>
+              <div className="sm:col-span-2">
+                <AmenityPicker
+                  label="Tiện nghi khách sạn"
+                  value={hotelAmenities}
+                  onChange={setHotelAmenities}
+                  suggestions={HOTEL_AMENITY_SUGGESTIONS}
+                />
+              </div>
               <label className="sm:col-span-2 block text-sm font-bold text-stone-700">
                 Link Hình ảnh (mỗi link 1 dòng){" "}
                 <textarea
@@ -427,8 +447,8 @@ export default function PartnerDashboard() {
           />
         </div>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[1.4fr_0.6fr]">
-          <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+        <div className="mt-8">
+          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-display text-2xl font-semibold text-[#173b31]">
@@ -436,6 +456,15 @@ export default function PartnerDashboard() {
                 </h2>
               </div>
             </div>
+
+            {notice && (
+              <div className="mt-5 flex items-start justify-between gap-3 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+                <span>{notice}</span>
+                <button type="button" onClick={() => setNotice("")} className="shrink-0">
+                  Đóng
+                </button>
+              </div>
+            )}
 
             {hotelsLoading ? (
               <div className="mt-8 text-center text-sm text-stone-500">
@@ -449,48 +478,79 @@ export default function PartnerDashboard() {
               myHotels.map((hotel) => (
                 <div
                   key={hotel._id}
-                  className="mt-6 flex flex-col gap-5 border-t border-stone-100 pt-6 sm:flex-row sm:items-center"
+                  className="mt-6 flex flex-col gap-4 border-t border-stone-100 pt-6 lg:flex-row lg:items-center"
                 >
-                  <img
-                    src={hotel.images?.[0] || photos.city}
-                    className="h-28 w-full rounded-xl object-cover sm:w-40 bg-stone-100"
-                    alt={hotel.hotelName}
-                  />
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-bold text-stone-900">
-                        {hotel.hotelName}
-                      </h3>
-                      <span
-                        className={`rounded-full px-2 py-1 text-[11px] font-extrabold ${hotel.status === "Approved" ? "bg-emerald-50 text-emerald-700" : hotel.status === "Rejected" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}
-                      >
-                        {hotel.status === "Approved"
-                          ? "ĐANG HOẠT ĐỘNG"
-                          : hotel.status === "Rejected"
-                            ? "BỊ TỪ CHỐI"
-                            : "CHỜ DUYỆT"}
-                      </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+                    <img
+                      src={hotel.images?.[0] || photos.city}
+                      className="h-40 w-full rounded-xl bg-stone-100 object-cover sm:h-28 sm:w-40 sm:shrink-0"
+                      alt={hotel.hotelName}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-stone-900">{hotel.hotelName}</h3>
+                        <span
+                          className={`rounded-full px-2 py-1 text-[11px] font-extrabold ${hotel.status === "Approved" ? "bg-emerald-50 text-emerald-700" : hotel.status === "Rejected" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}
+                        >
+                          {hotel.status === "Approved"
+                            ? "ĐANG HOẠT ĐỘNG"
+                            : hotel.status === "Rejected"
+                              ? "BỊ TỪ CHỐI"
+                              : "CHỜ DUYỆT"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-stone-500">
+                        {hotel.address?.street}, {hotel.address?.city}
+                      </p>
+                      {hotel.status === "Rejected" && hotel.rejectionReason && (
+                        <p className="mt-1 text-xs font-semibold text-red-600">
+                          Lý do: {hotel.rejectionReason}
+                        </p>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {(hotel.amenities || []).slice(0, 5).map((a) => (
+                          <span key={a} className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-semibold text-stone-600">
+                            {a}
+                          </span>
+                        ))}
+                        {(hotel.amenities || []).length > 5 && (
+                          <span className="text-[11px] font-semibold text-stone-400">
+                            +{hotel.amenities.length - 5}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="mt-2 text-sm text-stone-500">
-                      {hotel.address?.street}, {hotel.address?.city}
-                    </p>
                   </div>
-                  {hotel.status === "Approved" && (
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <button
-                        onClick={() => setManagingHotel(hotel)}
-                        className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold transition hover:bg-stone-50"
-                      >
-                        + Thêm Hạng phòng
-                      </button>
-                      <button
-                        onClick={() => openPricingModal(hotel)}
-                        className="rounded-full bg-[#173b31] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#245a4b]"
-                      >
-                        Chỉnh Giá / Quỹ phòng
-                      </button>
-                    </div>
-                  )}
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
+                    <button
+                      onClick={() => setEditingHotel(hotel)}
+                      className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold transition hover:bg-stone-50"
+                    >
+                      Sửa thông tin
+                    </button>
+                    {hotel.status === "Approved" && (
+                      <>
+                        <button
+                          onClick={() => setRoomsHotel(hotel)}
+                          className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold transition hover:bg-stone-50"
+                        >
+                          Hạng phòng
+                        </button>
+                        <button
+                          onClick={() => setManagingHotel(hotel)}
+                          className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold transition hover:bg-stone-50"
+                        >
+                          + Thêm hạng phòng
+                        </button>
+                        <button
+                          onClick={() => openPricingModal(hotel)}
+                          className="rounded-full bg-[#173b31] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#245a4b]"
+                        >
+                          Giá / Quỹ phòng
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))
             )}
@@ -501,6 +561,19 @@ export default function PartnerDashboard() {
           <PartnerBookings onSummaryChange={setBookingSummary} />
         </div>
       </div>
+
+      {editingHotel && (
+        <HotelEditModal
+          hotel={editingHotel}
+          onClose={() => setEditingHotel(null)}
+          onSaved={(updated, message) => {
+            setMyHotels((prev) => prev.map((h) => (h._id === updated._id ? updated : h)));
+            setEditingHotel(null);
+            setNotice(message);
+          }}
+        />
+      )}
+      {roomsHotel && <RoomManagerModal hotel={roomsHotel} onClose={() => setRoomsHotel(null)} />}
 
       {/* MODAL TẠO HẠNG PHÒNG ĐƯỢC CHÈN VÀO ĐÂY */}
       {managingHotel && (
@@ -594,16 +667,14 @@ export default function PartnerDashboard() {
                 />
               </label>
 
-              <label className="sm:col-span-3 block text-sm font-bold text-stone-700">
-                Tiện ích phòng (Cách nhau dấu phẩy){" "}
-                <input
-                  name="amenities"
-                  value={roomFormData.amenities}
-                  onChange={handleRoomChange}
-                  placeholder="Ban công, Bồn tắm, Tivi 65 inch"
-                  className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+              <div className="sm:col-span-3">
+                <AmenityPicker
+                  label="Tiện nghi phòng"
+                  value={roomAmenities}
+                  onChange={setRoomAmenities}
+                  suggestions={ROOM_AMENITY_SUGGESTIONS}
                 />
-              </label>
+              </div>
 
               <label className="sm:col-span-3 block text-sm font-bold text-stone-700">
                 Mô tả phòng{" "}

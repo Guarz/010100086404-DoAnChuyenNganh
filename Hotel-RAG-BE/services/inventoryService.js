@@ -56,7 +56,7 @@ exports.cancelPendingBooking = async (filter) => {
   const booking = await Booking.findOneAndUpdate(
     { ...filter, bookingStatus: 'Pending' },
     { $set: { bookingStatus: 'Canceled' }, $unset: { expiresAt: 1 } },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   if (!booking) return null;

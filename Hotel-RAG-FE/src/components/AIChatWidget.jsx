@@ -86,10 +86,10 @@ export default function AIChatWidget() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end sm:bottom-6 sm:right-6">
       {/* Box Chat */}
       {isOpen && (
-        <div className="mb-4 w-[400px] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl transition-all flex flex-col">
+        <div className="mb-4 flex w-[calc(100vw-2rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl transition-all">
           {/* Header Box */}
           <div className="flex items-center justify-between bg-[#173b31] p-4 text-white">
             <div className="flex items-center gap-2">
@@ -103,7 +103,7 @@ export default function AIChatWidget() {
           </div>
 
           {/* Body Lịch sử Chat */}
-          <div className="h-[420px] overflow-y-auto bg-stone-50 p-4 space-y-4">
+          <div className="h-[min(420px,calc(100dvh-14rem))] space-y-4 overflow-y-auto bg-stone-50 p-4">
             {messages.map((msg, index) => (
               <div key={index} className={`flex gap-3 ${msg.sender === "user" ? "flex-row-reverse" : ""}`}>
                 {msg.sender === "ai" && (

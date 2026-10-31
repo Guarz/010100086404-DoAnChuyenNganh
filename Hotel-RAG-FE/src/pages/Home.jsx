@@ -107,19 +107,19 @@ export default function Home() {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#102f28]/90 via-[#102f28]/55 to-transparent" />
 
-        <div className="relative mx-auto flex min-h-[680px] max-w-7xl flex-col justify-center px-6 pb-32 pt-20 lg:px-8">
+        <div className="relative mx-auto flex min-h-[680px] max-w-7xl flex-col justify-center px-6 pb-[21rem] pt-16 sm:pb-72 lg:px-8 lg:pb-32 lg:pt-20">
           <div className="mb-6 flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md">
             <Icon name="sparkle" size={16} /> Hơn 12.000 chỗ nghỉ đã được tuyển
             chọn
           </div>
-          <h1 className="font-display max-w-3xl text-5xl leading-[1.05] font-medium tracking-tight text-white sm:text-7xl">
+          <h1 className="font-display max-w-3xl text-4xl leading-[1.05] font-medium tracking-tight text-white sm:text-6xl lg:text-7xl">
             Đi đâu cũng được.
             <br />
             <span className="italic text-[#f2cc88]">
               Miễn là thật đáng nhớ.
             </span>
           </h1>
-          <p className="mt-7 max-w-xl text-lg leading-8 text-white/80">
+          <p className="mt-5 max-w-xl text-base leading-7 text-white/80 sm:mt-7 sm:text-lg sm:leading-8">
             Từ homestay ấm cúng đến những khu nghỉ dưỡng bên biển — tìm một nơi
             dành riêng cho chuyến đi của bạn.
           </p>
@@ -344,7 +344,7 @@ export default function Home() {
       </section>
 
       {/* DANH SÁCH KHÁCH SẠN NỔI BẬT TỪ DATABASE */}
-      <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+      <section className="mx-auto max-w-7xl px-5 py-14 sm:py-20 lg:px-8">
         <h2 className="font-display text-3xl font-semibold text-[#173b31]">
           Điểm đến nổi bật
         </h2>
@@ -366,7 +366,7 @@ export default function Home() {
               <div
                 key={hotel._id}
                 onClick={() => navigate(`/hotels/${hotel._id}`)}
-                className="group cursor-pointer rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition hover:shadow-lg"
+                className="group min-w-0 cursor-pointer rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition hover:shadow-lg"
               >
                 <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-stone-100 relative">
                   <img
@@ -379,7 +379,7 @@ export default function Home() {
                   />
                   {/* Badge Đánh giá */}
                   <div className="absolute top-3 right-3 bg-white/90 backdrop-blur rounded-lg px-2 py-1 text-xs font-extrabold text-[#173b31] shadow">
-                    ★ {hotel.rating > 0 ? hotel.rating : "Mới"}
+                    ★ {hotel.rating > 0 ? hotel.rating.toFixed(1) : "Mới"}
                   </div>
                 </div>
 

@@ -131,7 +131,7 @@ export default function PartnerBookings({ onSummaryChange }) {
 
   return (
     <section className="rounded-2xl border border-stone-200 bg-white shadow-sm">
-      <div className="flex flex-col justify-between gap-4 border-b border-stone-100 p-6 sm:flex-row sm:items-end">
+      <div className="flex flex-col justify-between gap-4 border-b border-stone-100 p-5 sm:flex-row sm:items-end sm:p-6">
         <div>
           <h2 className="font-display text-2xl font-semibold text-[#173b31]">
             Đơn đặt phòng
@@ -142,7 +142,7 @@ export default function PartnerBookings({ onSummaryChange }) {
               : "Theo dõi lịch nhận / trả phòng của khách"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex min-w-0 gap-2">
           <select
             value={hotelId}
             onChange={(e) => {
@@ -150,7 +150,7 @@ export default function PartnerBookings({ onSummaryChange }) {
               loadBookings(e.target.value);
             }}
             aria-label="Lọc theo khách sạn"
-            className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold outline-none focus:border-[#173b31]"
+            className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold outline-none focus:border-[#173b31] sm:flex-none"
           >
             <option value="">Tất cả khách sạn</option>
             {hotels.map((hotel) => (
@@ -163,14 +163,14 @@ export default function PartnerBookings({ onSummaryChange }) {
             type="button"
             onClick={() => loadBookings()}
             disabled={loading}
-            className="rounded-xl border border-stone-200 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 disabled:opacity-60"
+            className="shrink-0 rounded-xl border border-stone-200 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 disabled:opacity-60"
           >
             Tải lại
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-b border-stone-100 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2">
           {VIEWS.map((item) => (
             <button
@@ -190,7 +190,7 @@ export default function PartnerBookings({ onSummaryChange }) {
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
+        <div className="flex min-w-0 gap-2">
           {view === "all" && (
             <select
               value={statusFilter}

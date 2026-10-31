@@ -19,7 +19,7 @@ Ký hiệu: ✅ được phép · 🔒 chỉ trên tài nguyên **của mình** 
 
 | Endpoint | Khách vãng lai | Customer | Partner | Admin |
 |---|---|---|---|---|
-| `GET /api/hotels`, `/hotels/search`, `/hotels/:id`, `/hotels/:id/rooms`, `GET /api/reviews/hotel/:id`, `POST /api/ai/search` | 🌐 | 🌐 | 🌐 | 🌐 |
+| `GET /api/hotels`, `/hotels/search`, `/hotels/amenities`, `/hotels/:id`, `/hotels/:id/rooms`, `GET /api/reviews/hotel/:id`, `POST /api/ai/search` | 🌐 | 🌐 | 🌐 | 🌐 |
 | `POST /api/auth/register`, `/auth/login` | 🌐 | 🌐 | 🌐 | 🌐 |
 | `GET/PUT /api/users/me`, `PUT /users/me/password` | ❌ | 🔒 | 🔒 | 🔒 |
 | `POST /api/bookings`, `GET /bookings/my-bookings`, `GET /bookings/:id`, `PUT /bookings/:id/cancel` | ❌ | 🔒 | 🔒 | 🔒 |
@@ -27,8 +27,8 @@ Ký hiệu: ✅ được phép · 🔒 chỉ trên tài nguyên **của mình** 
 | `POST /api/reviews` | ❌ | 🔒 đơn Completed của mình | 🔒 | 🔒 |
 | `POST /api/partner/apply`, `GET /partner/application-status` | ❌ | ✅ | ✅ | ✅ |
 | `POST /api/partner/hotels`, `GET /partner/hotels` | ❌ | ❌ | 🔒 | ✅ |
-| `POST /partner/hotels/:hotelId/rooms` | ❌ | ❌ | 🔒 KS của mình | ✅ |
-| `PUT /partner/rooms/:roomId/toggle`, `PUT /partner/inventory`, `GET /partner/inventory/check/:roomId` | ❌ | ❌ | 🔒 phòng của mình | ✅ |
+| `POST /partner/hotels/:hotelId/rooms`, `PUT /partner/hotels/:hotelId` | ❌ | ❌ | 🔒 KS của mình | ✅ |
+| `PUT /partner/rooms/:roomId`, `PUT /partner/rooms/:roomId/toggle`, `PUT /partner/inventory`, `GET /partner/inventory/check/:roomId` | ❌ | ❌ | 🔒 phòng của mình | ✅ |
 | `GET /partner/bookings`, `PUT /partner/bookings/:id/complete` | ❌ | ❌ | 🔒 đơn của KS mình | ✅ |
 | `GET /partner/applications/pending`, `PUT /partner/applications/:userId/:decision` | ❌ | ❌ | ❌ | ✅ |
 | `/api/admin/*` (users, hotels, rag-analytics, rag/evaluate) | ❌ | ❌ | ❌ | ✅ |

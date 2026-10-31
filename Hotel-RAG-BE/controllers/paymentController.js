@@ -116,7 +116,7 @@ exports.vnpayReturn = async (req, res) => {
         const booking = await Booking.findOneAndUpdate(
           { _id: bookingId, bookingStatus: 'Pending' },
           { $set: { bookingStatus: 'Confirmed' }, $unset: { expiresAt: 1 } },
-          { new: true }
+          { returnDocument: 'after' }
         );
         if (!booking) {
           const existing = await Booking.findById(bookingId).select('bookingStatus');

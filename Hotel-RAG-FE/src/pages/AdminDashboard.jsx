@@ -298,10 +298,10 @@ export default function AdminDashboard() {
           />
         </div>
 
-        <div className="mt-8 flex w-fit rounded-full bg-stone-200/70 p-1">
+        <div className="mt-8 flex max-w-full overflow-x-auto rounded-full bg-stone-200/70 p-1 sm:w-fit">
           <button
             onClick={() => setTab("hotels")}
-            className={`rounded-full px-5 py-2.5 text-sm font-bold transition ${
+            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold transition sm:px-5 ${
               tab === "hotels"
                 ? "bg-white text-[#173b31] shadow-sm"
                 : "text-stone-500"
@@ -317,7 +317,7 @@ export default function AdminDashboard() {
               setTab("partners");
               loadPartnerApplications();
             }}
-            className={`rounded-full px-5 py-2.5 text-sm font-bold transition ${
+            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold transition sm:px-5 ${
               tab === "partners"
                 ? "bg-white text-[#173b31] shadow-sm"
                 : "text-stone-500"
@@ -333,7 +333,7 @@ export default function AdminDashboard() {
               setTab("users");
               loadUsers();
             }}
-            className={`rounded-full px-5 py-2.5 text-sm font-bold transition ${
+            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold transition sm:px-5 ${
               tab === "users"
                 ? "bg-white text-[#173b31] shadow-sm"
                 : "text-stone-500"
@@ -623,7 +623,7 @@ export default function AdminDashboard() {
                     : `${items.length} khách sạn`}
                 </p>
               </div>
-              <div className="flex flex-wrap rounded-full bg-stone-100 p-1 text-xs font-bold">
+              <div className="flex flex-wrap rounded-2xl bg-stone-100 p-1 text-xs font-bold sm:rounded-full">
                 {HOTEL_FILTERS.map((filter) => (
                   <button
                     key={filter.value}

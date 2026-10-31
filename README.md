@@ -48,6 +48,7 @@ JWT_SECRET=<chuoi-bi-mat-dai-va-ngau-nhien>
 - `MONGO_URI`: connection string MongoDB Atlas, có tên database, ví dụ `Hotel-RAG`.
 - `GEMINI_API_KEY`: API key được phép dùng Gemini.
 - `JWT_SECRET`: chuỗi bí mật do bạn tự tạo, dùng để ký/xác minh token đăng nhập.
+- Không bắt buộc — sinh câu trả lời AI bằng model chạy local thay cho Gemini: `LLM_PROVIDER=ollama`, `OLLAMA_MODEL=dolphin3` (xem [`docs/local-llm-dolphin.md`](docs/local-llm-dolphin.md)). Mặc định `LLM_PROVIDER=gemini`.
 - Trong MongoDB Atlas, cho phép địa chỉ IP hiện tại trong **Network Access** và tạo Database User có quyền phù hợp.
 
 ## Chạy API và giao diện
@@ -161,7 +162,8 @@ Ma trận phân quyền đầy đủ của mọi endpoint: [`docs/security-rbac.
 | Method | Endpoint | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | Công khai | Kiểm tra API |
-| `GET` | `/api/hotels`, `/api/hotels/search`, `/api/hotels/featured` | Công khai | Danh sách / tìm kiếm / top 8 khách sạn |
+| `GET` | `/api/hotels`, `/api/hotels/search`, `/api/hotels/featured` | Công khai | Danh sách / tìm kiếm (`?amenities=Hồ bơi,Spa` lọc theo tiện nghi, trả `priceFrom`) / top 8 khách sạn |
+| `GET` | `/api/hotels/amenities` | Công khai | Danh mục tiện nghi chuẩn kèm số khách sạn (dùng cho bộ lọc) |
 | `GET` | `/api/hotels/:id`, `/api/hotels/:id/rooms` | Công khai | Chi tiết KS, hạng phòng + giá động theo ngày |
 | `POST` | `/api/auth/register`, `/api/auth/login` | Công khai | Đăng ký, đăng nhập (JWT) |
 | `GET/PUT` | `/api/users/me`, `PUT /api/users/me/password` | Đăng nhập | Hồ sơ cá nhân, đổi mật khẩu |
@@ -174,6 +176,8 @@ Ma trận phân quyền đầy đủ của mọi endpoint: [`docs/security-rbac.
 | `GET` | `/api/reviews/hotel/:hotelId` | Công khai | Đánh giá của khách sạn |
 | `POST` | `/api/reviews` | Chủ đơn `Completed` | Viết đánh giá 1–5 sao |
 | `POST/GET` | `/api/partner/hotels` | Partner, Admin | Tạo / xem khách sạn của mình |
+| `PUT` | `/api/partner/hotels/:hotelId` | Chủ KS, Admin | Sửa tên, mô tả, địa chỉ, tiện nghi, ảnh (KS bị từ chối sẽ được gửi duyệt lại) |
+| `PUT` | `/api/partner/rooms/:roomId` | Chủ KS, Admin | Sửa hạng phòng: tiện nghi, ảnh, mô tả, giá gốc, sức chứa, tổng số phòng |
 | `POST` | `/api/partner/hotels/:hotelId/rooms` | Chủ KS, Admin | Tạo hạng phòng |
 | `PUT` | `/api/partner/rooms/:roomId/toggle` | Chủ KS, Admin | Khóa / mở bán hạng phòng |
 | `PUT` | `/api/partner/inventory` | Chủ KS, Admin | Cập nhật giá / số phòng trống theo khoảng ngày |
@@ -223,6 +227,9 @@ node Hotel-RAG-BE/scripts/seedMockData.js --embeddings   # thêm: tạo lại ve
 | [`docs/booking-concurrency.md`](docs/booking-concurrency.md) | Chống oversell, rollback, idempotency |
 | [`docs/security-rbac.md`](docs/security-rbac.md) | Ma trận phân quyền, lỗ hổng đã vá |
 | [`docs/implementation-status.md`](docs/implementation-status.md) | Implemented / Prototype / Mock / Planned |
+| [`docs/local-llm-dolphin.md`](docs/local-llm-dolphin.md) | Chạy Dolphin 3.0 Llama 3.1 8B local qua Ollama |
+| [`docs/aws-ollama.md`](docs/aws-ollama.md) | Chạy Ollama trên AWS EC2 GPU, kết nối an toàn bằng SSH tunnel / reverse proxy |
+| [`docs/colab-ollama.md`](docs/colab-ollama.md) | Chạy Dolphin 3.0 trên Google Colab (GPU T4 miễn phí) qua tunnel có khóa — notebook `colab/ollama_dolphin_colab.ipynb` |
 
 ## Kiểm tra frontend
 
