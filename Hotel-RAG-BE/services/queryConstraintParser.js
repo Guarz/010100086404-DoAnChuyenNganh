@@ -164,4 +164,4 @@ const hasHardConstraints = (c) => Boolean(
 const amenityMatcher = (label) => AMENITIES.find((a) => a.label === label).match;
 const roomKindMatcher = (label) => ROOM_KINDS.find((k) => k.label === label).match;
 
-module.exports = { parseQueryConstraints, hasHardConstraints, amenityMatcher, roomKindMatcher, plain };
+module.exports = { parseQueryConstraints, hasHardConstraints, amenityMatcher, roomKindMatcher, plain, AMENITIES };

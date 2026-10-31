@@ -15,7 +15,9 @@ const {
   toggleRoomStatus,
   checkInventory,
   getPartnerBookings,
-  completePartnerBooking
+  completePartnerBooking,
+  updateHotel,
+  updateRoomType
 } = require('../controllers/partnerController');
 
 // Import đúng tên 2 hàm từ Middleware
@@ -34,7 +36,9 @@ router.put('/applications/:userId/:decision', authenticateUser, authorizeRoles('
 
 router.post('/hotels', authenticateUser, authorizeRoles('Partner', 'Admin'), createHotel);
 router.get('/hotels', authenticateUser, authorizeRoles('Partner', 'Admin'), getMyHotels);
+router.put('/hotels/:hotelId', partnerOnly, ownsHotelParam, updateHotel);
 router.post('/hotels/:hotelId/rooms', partnerOnly, ownsHotelParam, createRoomType);
+router.put('/rooms/:roomId', partnerOnly, ownsRoomParam, updateRoomType);
 router.put('/rooms/:roomId/toggle', partnerOnly, ownsRoomParam, toggleRoomStatus);
 
 router.put('/inventory', partnerOnly, ownsRoomBody, updateInventory);

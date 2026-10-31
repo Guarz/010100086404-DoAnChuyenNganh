@@ -62,8 +62,8 @@ const RagAnalyticsDashboard = () => {
   if (isLoading) return <div className="p-5 text-center text-gray-500 font-medium">Đang tải dữ liệu RAG...</div>;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-800">RAG AI Analytics</h1>
         <button 
           onClick={handleTriggerEvaluation}
@@ -97,8 +97,8 @@ const RagAnalyticsDashboard = () => {
         {metrics.avgLatencyMs != null && ` · Độ trễ trung bình: ${(metrics.avgLatencyMs / 1000).toFixed(1)}s`}
       </p>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
-        <table className="w-full text-left border-collapse">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow">
+        <table className="w-full min-w-[720px] border-collapse text-left">
           <thead className="bg-gray-100 text-gray-600 uppercase text-xs font-semibold">
             <tr>
               <th className="px-6 py-4 border-b">Thời gian</th>

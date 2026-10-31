@@ -5,6 +5,8 @@ const mongoose = require("mongoose");
 const RoomType = require("../models/RoomType");
 const RoomInventory = require("../models/RoomInventory");
 const Booking = require("../models/Booking");
+const { sanitizeAmenities, sanitizeImages } = require("../services/amenityCatalog");
+const { generateHotelEmbedding } = require("../services/aiService");
 
 exports.getApplicationStatus = async (req, res) => {
   try {
@@ -144,12 +146,19 @@ exports.createHotel = async (req, res) => {
     } = req.body;
 
     // 1. Validate dữ liệu cơ bản
-    if (!hotelName || !address || !address.city) {
+    if (!hotelName || !description || !address || !address.city) {
       return res.status(400).json({
         success: false,
         message:
-          "Vui lòng cung cấp đủ thông tin bắt buộc (hotelName, address.city)",
+          "Vui lòng cung cấp đủ thông tin bắt buộc (tên, mô tả, thành phố)",
       });
+    }
+    let cleanAmenities, cleanImages;
+    try {
+      cleanAmenities = sanitizeAmenities(amenities || []);
+      cleanImages = sanitizeImages(images || []);
+    } catch (validationError) {
+      return res.status(400).json({ success: false, message: validationError.message });
     }
 
     // 2. Tạo object Khách sạn mới
@@ -166,8 +175,8 @@ exports.createHotel = async (req, res) => {
               coordinates: coordinates,
             }
           : undefined,
-      amenities: amenities || [],
-      images: images || [],
+      amenities: cleanAmenities,
+      images: cleanImages,
       rating: 0, // Khách sạn mới chưa có đánh giá
       status: "Pending", // BẮT BUỘC ÉP KIỂU: Không cho Partner tự sửa thành Approved
       embedding: [], // Bỏ trống, chờ chạy AI script sau
@@ -217,6 +226,13 @@ exports.createRoomType = async (req, res) => {
         message: "Vui lòng nhập đủ: title, basePrice, totalQuantity",
       });
     }
+    let cleanAmenities, cleanImages;
+    try {
+      cleanAmenities = sanitizeAmenities(amenities || []);
+      cleanImages = sanitizeImages(images || []);
+    } catch (validationError) {
+      return res.status(400).json({ success: false, message: validationError.message });
+    }
 
     // 5. Lưu RoomType vào DB
     const newRoomType = new RoomType({
@@ -227,8 +243,8 @@ exports.createRoomType = async (req, res) => {
       maxAdults: maxAdults || 2,
       maxChildren: maxChildren || 0,
       totalQuantity,
-      amenities: amenities || [],
-      images: images || [],
+      amenities: cleanAmenities,
+      images: cleanImages,
     });
 
     await newRoomType.save();
@@ -551,5 +567,129 @@ exports.completePartnerBooking = async (req, res) => {
   } catch (error) {
     console.error("Lỗi xác nhận trả phòng:", error);
     return res.status(500).json({ success: false, message: "Không thể cập nhật đơn lúc này" });
+  }
+};
+
+
+// =====================================================
+// PARTNER CHỈNH SỬA KHÁCH SẠN / HẠNG PHÒNG
+// (quyền sở hữu đã được requireHotelOwnership / requireRoomOwnership kiểm tra ở route)
+// =====================================================
+const textField = (value, { min = 1, max, label }) => {
+  if (typeof value !== "string" || value.trim().length < min || value.trim().length > max) {
+    throw new Error(`${label} cần từ ${min} đến ${max} ký tự`);
+  }
+  return value.trim();
+};
+const intField = (value, { min, max, label }) => {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${label} phải là số nguyên từ ${min} đến ${max}`);
+  return n;
+};
+
+// [PUT] /api/partner/hotels/:hotelId - sửa thông tin, tiện nghi, ảnh của khách sạn
+exports.updateHotel = async (req, res) => {
+  const hotel = req.hotel;
+  const { hotelName, description, address, amenities, images } = req.body;
+  const update = {};
+
+  try {
+    if (hotelName !== undefined) update.hotelName = textField(hotelName, { min: 2, max: 150, label: "Tên khách sạn" });
+    if (description !== undefined) update.description = textField(description, { min: 10, max: 3000, label: "Mô tả" });
+    if (address !== undefined) {
+      if (!address || typeof address !== "object") throw new Error("Địa chỉ không hợp lệ");
+      update.address = {
+        street: textField(address.street ?? hotel.address?.street ?? "", { min: 1, max: 200, label: "Địa chỉ" }),
+        city: textField(address.city ?? hotel.address?.city ?? "", { min: 1, max: 100, label: "Quận/Thành phố" }),
+        province: textField(address.province ?? hotel.address?.province ?? "", { min: 1, max: 100, label: "Tỉnh/TP" }),
+      };
+    }
+    if (amenities !== undefined) update.amenities = sanitizeAmenities(amenities);
+    if (images !== undefined) update.images = sanitizeImages(images);
+  } catch (validationError) {
+    return res.status(400).json({ success: false, message: validationError.message });
+  }
+
+  if (!Object.keys(update).length) {
+    return res.status(400).json({ success: false, message: "Không có thông tin nào để cập nhật" });
+  }
+
+  try {
+    let message = "Đã cập nhật khách sạn";
+    // KS bị từ chối được sửa và gửi duyệt lại
+    if (hotel.status === "Rejected") {
+      update.status = "Pending";
+      update.rejectionReason = null;
+      message = "Đã cập nhật và gửi lại hồ sơ cho Admin duyệt";
+    }
+
+    const updated = await Hotel.findByIdAndUpdate(hotel._id, { $set: update }, { returnDocument: 'after', runValidators: true })
+      .select("-embedding");
+
+    // Nội dung dùng cho tìm kiếm AI thay đổi -> tạo lại vector ngầm (không chặn response)
+    const affectsSearch = ["hotelName", "description", "address", "amenities"].some((key) => key in update);
+    if (updated.status === "Approved" && affectsSearch) {
+      generateHotelEmbedding(updated)
+        .then((embedding) => embedding.length && Hotel.updateOne({ _id: updated._id }, { $set: { embedding } }))
+        .catch((error) => console.error("Không tạo lại được embedding:", error.message));
+      message += ". Đang cập nhật dữ liệu tìm kiếm AI";
+    }
+
+    return res.status(200).json({ success: true, message, data: updated });
+  } catch (error) {
+    console.error("Lỗi cập nhật khách sạn:", error);
+    return res.status(500).json({ success: false, message: "Không thể cập nhật khách sạn lúc này" });
+  }
+};
+
+// [PUT] /api/partner/rooms/:roomId - sửa thông tin, tiện nghi, ảnh, giá gốc, sức chứa, tổng số phòng
+exports.updateRoomType = async (req, res) => {
+  const room = req.room;
+  const { title, description, basePrice, maxAdults, maxChildren, totalQuantity, amenities, images } = req.body;
+  const update = {};
+
+  try {
+    if (title !== undefined) update.title = textField(title, { min: 2, max: 120, label: "Tên hạng phòng" });
+    if (description !== undefined) update.description = textField(description, { min: 0, max: 2000, label: "Mô tả" });
+    if (basePrice !== undefined) update.basePrice = intField(basePrice, { min: 1000, max: 1000000000, label: "Giá gốc" });
+    if (maxAdults !== undefined) update.maxAdults = intField(maxAdults, { min: 1, max: 20, label: "Số người lớn" });
+    if (maxChildren !== undefined) update.maxChildren = intField(maxChildren, { min: 0, max: 20, label: "Số trẻ em" });
+    if (totalQuantity !== undefined) update.totalQuantity = intField(totalQuantity, { min: 1, max: 1000, label: "Tổng số phòng" });
+    if (amenities !== undefined) update.amenities = sanitizeAmenities(amenities);
+    if (images !== undefined) update.images = sanitizeImages(images);
+  } catch (validationError) {
+    return res.status(400).json({ success: false, message: validationError.message });
+  }
+
+  if (!Object.keys(update).length) {
+    return res.status(400).json({ success: false, message: "Không có thông tin nào để cập nhật" });
+  }
+
+  try {
+    const updated = await RoomType.findByIdAndUpdate(room._id, { $set: update }, { returnDocument: 'after', runValidators: true });
+
+    // Đổi tổng số phòng: cộng/trừ phần chênh lệch vào quỹ phòng các ngày từ hôm nay
+    // (giữ nguyên số phòng đã được đặt; không để âm)
+    const delta = update.totalQuantity !== undefined ? update.totalQuantity - room.totalQuantity : 0;
+    if (delta !== 0) {
+      const now = new Date();
+      const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+      await RoomInventory.updateMany(
+        { roomTypeId: room._id, date: { $gte: todayUtc } },
+        [{ $set: { availableRooms: { $max: [0, { $add: ["$availableRooms", delta] }] } } }],
+        { updatePipeline: true },
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: delta
+        ? `Đã cập nhật hạng phòng và điều chỉnh quỹ phòng (${delta > 0 ? "+" : ""}${delta} phòng/ngày)`
+        : "Đã cập nhật hạng phòng",
+      data: updated,
+    });
+  } catch (error) {
+    console.error("Lỗi cập nhật hạng phòng:", error);
+    return res.status(500).json({ success: false, message: "Không thể cập nhật hạng phòng lúc này" });
   }
 };

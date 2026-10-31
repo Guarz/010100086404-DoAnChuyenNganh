@@ -40,7 +40,7 @@ exports.updateMe = async (req, res) => {
   }
 
   try {
-    const user = await User.findByIdAndUpdate(req.user.id, { $set: update }, { new: true, runValidators: true })
+    const user = await User.findByIdAndUpdate(req.user.id, { $set: update }, { returnDocument: 'after', runValidators: true })
       .select(PUBLIC_FIELDS);
     return res.status(200).json({ success: true, message: 'Đã cập nhật thông tin cá nhân', data: user });
   } catch (error) {

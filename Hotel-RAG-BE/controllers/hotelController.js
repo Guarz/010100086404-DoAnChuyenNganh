@@ -3,6 +3,7 @@ const Hotel = require("../models/Hotel");
 const RoomInventory = require("../models/RoomInventory");
 const RoomType = require("../models/RoomType");
 const mongoose = require("mongoose");
+const { CATALOG, amenityHaystack, hasAllAmenities, catalogEntry } = require("../services/amenityCatalog");
 
 exports.getAllHotels = async (req, res) => {
   try {
@@ -83,13 +84,25 @@ exports.getRoomsByHotel = async (req, res) => {
   }
 };
 
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Danh sách tiện nghi chọn lọc: ?amenities=Hồ bơi,Spa (nhãn chuẩn trong services/amenityCatalog.js)
+const parseAmenityParam = (value) =>
+  String(value || "")
+    .split(",")
+    .map((label) => label.trim())
+    .filter((label) => catalogEntry(label));
+
+// [GET] /api/hotels/search?city=&checkIn=&checkOut=&adults=&children=&rooms=&amenities=
 exports.searchHotels = async (req, res) => {
   try {
-    const { city, checkIn, checkOut, adults, children } = req.query;
+    const { city, checkIn, checkOut, adults, children, rooms } = req.query;
+    const amenities = parseAmenityParam(req.query.amenities);
 
     const hotelFilter = { status: "Approved" };
-    if (city) {
-      hotelFilter["address.city"] = new RegExp(city, "i"); // Regex không phân biệt hoa thường
+    if (city && String(city).trim()) {
+      // Escape ký tự đặc biệt: khách gõ "(" không làm hỏng truy vấn
+      hotelFilter["address.city"] = new RegExp(escapeRegex(String(city).trim()), "i");
     }
 
     let hotels = await Hotel.aggregate([
@@ -107,17 +120,34 @@ exports.searchHotels = async (req, res) => {
 
     const requiredAdults = parseInt(adults) || 1;
     const requiredChildren = parseInt(children) || 0;
+    const requiredRooms = Math.max(parseInt(rooms) || 1, 1);
+
+    // Tiện nghi xét trên TOÀN BỘ hạng phòng đang bán của khách sạn (trước khi lọc theo số khách)
+    if (amenities.length) {
+      hotels = hotels.filter((hotel) =>
+        hasAllAmenities(
+          amenityHaystack(hotel, hotel.roomTypes.filter((rt) => rt.isActive !== false)),
+          amenities,
+        ),
+      );
+    }
 
     hotels.forEach((hotel) => {
       hotel.roomTypes = hotel.roomTypes.filter(
         (rt) =>
           rt.isActive !== false && // <-- THÊM DÒNG NÀY ĐỂ CHẶN PHÒNG BẢO TRÌ
           rt.maxAdults >= requiredAdults &&
-          rt.maxChildren >= requiredChildren,
+          (rt.maxChildren || 0) >= requiredChildren,
       );
     });
 
     hotels = hotels.filter((hotel) => hotel.roomTypes.length > 0);
+
+    // Giá thấp nhất mỗi đêm của khách sạn (mặc định theo giá gốc)
+    const priceOf = new Map();
+    hotels.forEach((hotel) =>
+      hotel.roomTypes.forEach((rt) => priceOf.set(rt._id.toString(), rt.basePrice)),
+    );
 
     if (checkIn && checkOut) {
       const checkInDate = new Date(checkIn);
@@ -141,11 +171,16 @@ exports.searchHotels = async (req, res) => {
             (inv) => inv.roomTypeId.toString() === rt._id.toString(),
           );
 
-          if (rtInventories.length < totalNights) return false;
+          if (totalNights <= 0 || rtInventories.length < totalNights) return false;
 
+          // Đủ số phòng khách cần cho MỌI đêm
           const isAvailable = rtInventories.every(
-            (inv) => inv.availableRooms > 0,
+            (inv) => inv.availableRooms >= requiredRooms,
           );
+          if (isAvailable) {
+            const total = rtInventories.reduce((sum, inv) => sum + (inv.dynamicPrice || rt.basePrice), 0);
+            priceOf.set(rt._id.toString(), Math.round(total / totalNights));
+          }
           return isAvailable;
         });
       });
@@ -153,12 +188,43 @@ exports.searchHotels = async (req, res) => {
       hotels = hotels.filter((hotel) => hotel.roomTypes.length > 0);
     }
 
-    res.status(200).json({ success: true, count: hotels.length, data: hotels });
+    hotels.forEach((hotel) => {
+      hotel.priceFrom = Math.min(...hotel.roomTypes.map((rt) => priceOf.get(rt._id.toString())));
+    });
+
+    res.status(200).json({ success: true, count: hotels.length, amenities, data: hotels });
   } catch (error) {
     console.error("Lỗi searchHotels:", error);
     res
       .status(500)
       .json({ success: false, message: "Lỗi server khi tìm kiếm" });
+  }
+};
+
+// [GET] /api/hotels/amenities - Danh sách tiện nghi chuẩn để làm bộ lọc, kèm số khách sạn có tiện nghi đó
+exports.getAmenityFacets = async (req, res) => {
+  try {
+    const [hotels, rooms] = await Promise.all([
+      Hotel.find({ status: "Approved" }).select("amenities").lean(),
+      RoomType.find({ isActive: { $ne: false } }).select("hotelId title amenities").lean(),
+    ]);
+    const roomsByHotel = new Map();
+    for (const room of rooms) {
+      const key = room.hotelId.toString();
+      if (!roomsByHotel.has(key)) roomsByHotel.set(key, []);
+      roomsByHotel.get(key).push(room);
+    }
+    const haystacks = hotels.map((hotel) => amenityHaystack(hotel, roomsByHotel.get(hotel._id.toString())));
+
+    const data = CATALOG
+      .map(({ label, match }) => ({ label, count: haystacks.filter((text) => match.test(text)).length }))
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error("Lỗi lấy danh sách tiện nghi:", error);
+    res.status(500).json({ success: false, message: "Không thể tải danh sách tiện nghi" });
   }
 };
 exports.getFeaturedHotels = async (req, res) => {

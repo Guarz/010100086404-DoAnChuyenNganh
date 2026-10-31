@@ -6,9 +6,8 @@ const RoomType = require('../models/RoomType');
 const mongoose = require('mongoose');
 const { generateHotelEmbedding } = require('../services/aiService');
 const { evaluateQuery, summarize, citationCorrectness } = require('../services/ragMetrics');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { generateText } = require('../services/llmService');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // [GET] /api/admin/users - Lấy danh sách người dùng
 exports.getUsers = async (req, res) => {
   try {
@@ -48,7 +47,7 @@ exports.updateUserStatus = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       userId,
       { status },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select('fullName email phone role status partnerApplicationStatus createdAt');
 
     if (!user) {
@@ -200,8 +199,9 @@ exports.evaluateGroundedness = async (req, res) => {
       return res.status(200).json({ message: "Tất cả logs đã được chấm điểm." });
     }
 
-    // gemini-1.5-flash đã bị Google gỡ -> dùng cùng model với AI Search
-    const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
+    // Giám khảo dùng LLM_JUDGE_PROVIDER (mặc định = LLM_PROVIDER). Nên dùng model KHÁC model sinh
+    // câu trả lời (vd. trả lời bằng ollama:dolphin3, chấm bằng gemini) để tránh model tự chấm mình.
+    const judgeProvider = process.env.LLM_JUDGE_PROVIDER || undefined;
     let evaluatedCount = 0;
 
     for (const log of unevaluatedLogs) {
@@ -213,7 +213,7 @@ exports.evaluateGroundedness = async (req, res) => {
       ]);
       const contextText = [
         ...hotels.map(h => `Khách sạn ${h.hotelName} (${h.address?.city}): ${h.description}. Tiện ích: ${h.amenities.join(', ')}. Điểm: ${h.rating}`),
-        ...rooms.map(r => `Phòng ${r.title}: ${r.description || ''}. Giá: ${r.basePrice}. Tiện ích: ${r.amenities.join(', ')}`)
+        ...rooms.map(r => `Phòng ${r.title}: ${r.description || ''}. Giá gốc: ${r.basePrice} (giá theo ngày có thể khác). Tiện ích: ${r.amenities.join(', ')}`)
       ].join("\n\n");
 
       // 2. Thiết kế Prompt ép LLM làm Giám khảo
@@ -235,15 +235,14 @@ exports.evaluateGroundedness = async (req, res) => {
 
       try {
         // 3. Gọi LLM chấm điểm
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text().trim();
-        
-        // Cắt bỏ markdown ```json nếu có để parse
-        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '');
-        const scoreData = JSON.parse(cleanJson);
+        const result = await generateText({ prompt, temperature: 0, maxTokens: 50 }, { provider: judgeProvider });
+
+        // Model local hay viết thêm chữ quanh JSON -> chỉ lấy đúng giá trị 0/1
+        const match = result.text.match(/"groundedness"\s*:\s*([01])/);
+        if (!match) throw new Error(`Giám khảo trả về không đúng định dạng: ${result.text.slice(0, 100)}`);
 
         // 4. Cập nhật điểm số vào Database
-        log.metrics.groundedness = scoreData.groundedness;
+        log.metrics.groundedness = Number(match[1]);
         await log.save();
         evaluatedCount++;
         

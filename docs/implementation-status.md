@@ -11,7 +11,7 @@
 |---|---|---|---|---|---|
 | Đăng ký / đăng nhập JWT | `/login`, `/register` | `POST /api/auth/*` | users | Implemented | rbac.test.js (401) |
 | Hồ sơ cá nhân, đổi mật khẩu | `/profile` (Thông tin, Bảo mật) | `GET/PUT /api/users/me`, `PUT /me/password` | users | Implemented | — |
-| Tìm khách sạn theo thành phố / ngày / số khách | `/hotels` | `GET /api/hotels/search` | hotels, roomtypes, roominventories | Implemented | — |
+| Tìm khách sạn theo thành phố / ngày / số khách / **tiện nghi** | `/hotels` | `GET /api/hotels/search`, `GET /api/hotels/amenities` | hotels, roomtypes, roominventories | Implemented | partner-edit-amenities.test.js |
 | Chi tiết KS, giá động theo ngày | `/hotels/:id` | `GET /api/hotels/:id/rooms` | roominventories | Implemented | — |
 | Đặt phòng, giữ chỗ 5 phút, chống oversell, idempotency | `/hotels/:id` → `/checkout/:id` | `POST /api/bookings` | bookings, roominventories | Implemented | booking-concurrency.test.js |
 | Tự hủy đơn quá hạn, hoàn quỹ (cronjob) | — | `jobs/bookingCron.js` | bookings, roominventories | Implemented | booking-concurrency.test.js |
@@ -20,13 +20,14 @@
 | Đánh giá 1–5 sao sau khi hoàn tất, điểm TB khách sạn | `/profile`, `/hotels/:id` | `POST /api/reviews`, `GET /api/reviews/hotel/:id` | reviews, hotels.rating | Implemented (mở rộng ngoài phạm vi ưu tiên, xem góp ý #8) | rbac.test.js |
 | Partner: đăng ký làm đối tác | `/partner-apply` | `/api/partner/apply` | users | Implemented | — |
 | Partner: tạo KS, hạng phòng, khóa phòng, giá/quỹ theo ngày | `/partner` | `/api/partner/hotels`, `/rooms`, `/inventory` | hotels, roomtypes, roominventories | Implemented | rbac.test.js (ownership) |
+| Partner: **sửa** KS và hạng phòng (tiện nghi, ảnh, mô tả, giá gốc, sức chứa, tổng số phòng) | `/partner` → Sửa thông tin / Hạng phòng | `PUT /api/partner/hotels/:id`, `PUT /api/partner/rooms/:id` | hotels, roomtypes, roominventories | Implemented | partner-edit-amenities.test.js |
 | Partner: quản lý đơn, nhận/trả phòng | `/partner` | `GET /api/partner/bookings`, `PUT /:id/complete` | bookings | Implemented | rbac.test.js |
 | Admin: duyệt/từ chối KS, duyệt partner, khóa user | `/admin` | `/api/admin/*` | hotels, users | Implemented | rbac.test.js |
 | Trợ lý RAG (ràng buộc cứng + xếp hạng ngữ nghĩa) | Widget chat mọi trang | `POST /api/ai/search` | hotels.embedding, raglogs | Implemented | rag-pipeline.test.js, docs/rag-benchmark.md |
 | RAG Analytics (HitRate, Recall, Precision, nDCG, MRR, citation, groundedness) | `/admin/rag` | `GET /api/admin/rag-analytics`, `POST /rag/evaluate` | raglogs | Implemented | — |
 | Thanh toán Momo / tiền mặt, phương thức thanh toán đã lưu | — | — | — | **Planned** (tab đã gỡ khỏi Profile) | — |
 | Ứng dụng di động, AI Agent | — | — | — | **Planned** (không thuộc phạm vi, xem góp ý #8) | — |
-| Nút "Xem tất cả ảnh" ở chi tiết KS | `/hotels/:id` | — | — | **Mock** (nút chưa có hành động) | — |
+| Xem tất cả ảnh khách sạn / ảnh hạng phòng | `/hotels/:id` | — | hotels.images, roomtypes.images | Implemented (trình xem ảnh `PhotoGallery`) | — |
 
 ## 2. Dữ liệu trên MongoDB Atlas (`Hotel-RAG`)
 

@@ -16,6 +16,8 @@ const ragLogSchema = new mongoose.Schema({
   llmResponse: { type: String, required: true },
   // llm: Gemini sinh câu trả lời | template: LLM lỗi, dùng câu trả lời dựng từ dữ liệu | guardrail: từ chối câu hỏi ngoài phạm vi
   answerSource: { type: String, enum: ['llm', 'template', 'guardrail'] },
+  // Model đã sinh câu trả lời, dạng "<provider>:<model>", vd. "ollama:dolphin3", "gemini:gemini-3.8-flash"
+  llmModel: { type: String },
   // Số ứng viên sau từng bước lọc: catalog -> afterHardFilters -> afterAvailability
   pipelineStats: { type: mongoose.Schema.Types.Mixed },
   latencyMs: { type: Number },

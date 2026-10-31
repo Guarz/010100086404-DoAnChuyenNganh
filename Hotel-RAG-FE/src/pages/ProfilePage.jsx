@@ -173,18 +173,20 @@ export default function ProfilePage({ onLogout }) {
 
         <div className="grid gap-7 lg:grid-cols-[270px_1fr]">
           <aside className="h-fit overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="border-b border-slate-100 p-6 text-center">
-              <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#d4a34f] text-xl font-extrabold text-white">
+            <div className="flex items-center gap-4 border-b border-slate-100 p-4 lg:block lg:p-6 lg:text-center">
+              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[#d4a34f] text-lg font-extrabold text-white lg:mx-auto lg:size-16 lg:text-xl">
                 {avatarText}
               </span>
-              <p className="mt-3 font-bold text-slate-900">{currentUser.fullName}</p>
-              <p className="mt-1 text-xs text-slate-500">{currentUser.email}</p>
-              <span className="mt-3 inline-block rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
-                {displayRole}
-              </span>
+              <div className="min-w-0">
+                <p className="truncate font-bold text-slate-900 lg:mt-3">{currentUser.fullName}</p>
+                <p className="mt-1 truncate text-xs text-slate-500">{currentUser.email}</p>
+                <span className="mt-2 inline-block rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 lg:mt-3">
+                  {displayRole}
+                </span>
+              </div>
             </div>
 
-            <nav className="p-2">
+            <nav className="flex gap-1 overflow-x-auto p-2 lg:block">
               {navItems.map((item) => (
                 <button
                   key={item.id}
@@ -196,7 +198,7 @@ export default function ProfilePage({ onLogout }) {
                     setActive(item.id);
                     setSaved(false);
                   }}
-                  className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
+                  className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition lg:w-full lg:gap-3 lg:px-4 lg:py-3 ${
                     active === item.id ? "bg-[#e8f2ed] text-[#173b31]" : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
@@ -206,7 +208,7 @@ export default function ProfilePage({ onLogout }) {
               ))}
             </nav>
 
-            <div className="border-t border-slate-100 p-2">
+            <div className="hidden border-t border-slate-100 p-2 lg:block">
               <button onClick={handleLogoutClick} className="w-full rounded-xl px-4 py-3 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50">
                 Đăng xuất
               </button>
