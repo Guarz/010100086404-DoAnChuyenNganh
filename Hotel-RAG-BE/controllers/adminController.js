@@ -5,6 +5,7 @@ const RagLog = require('../models/RagLog');
 const RoomType = require('../models/RoomType');
 const mongoose = require('mongoose');
 const { generateHotelEmbedding } = require('../services/aiService');
+const { evaluateQuery, summarize, citationCorrectness } = require('../services/ragMetrics');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -82,53 +83,138 @@ exports.getPendingHotels = async (req, res) => {
   }
 };
 
-// [PUT] /api/admin/hotels/:id/approve - Phê duyệt khách sạn
-exports.approveHotel = async (req, res) => {
-  try {
-    const hotelId = req.params.id;
+// [GET] /api/admin/hotels?status=Pending|Approved|Rejected|all - Danh sách toàn bộ khách sạn
+exports.getHotels = async (req, res) => {
+  const { status = 'all' } = req.query;
+  const allowed = ['Pending', 'Approved', 'Rejected', 'all'];
 
-    // 1. Tìm khách sạn đang chờ duyệt
-    const hotel = await Hotel.findById(hotelId);
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ success: false, message: 'Trạng thái lọc không hợp lệ' });
+  }
+
+  try {
+    const filter = status === 'all' ? {} : { status };
+    const [hotels, counts] = await Promise.all([
+      Hotel.find(filter)
+        .select('-embedding')
+        .populate('partnerId', 'fullName email phone')
+        // Hồ sơ chờ duyệt: cũ nhất lên đầu. Còn lại: mới nhất lên đầu
+        .sort({ createdAt: status === 'Pending' ? 1 : -1 }),
+      Hotel.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }])
+    ]);
+
+    const summary = { Pending: 0, Approved: 0, Rejected: 0, all: 0 };
+    counts.forEach(({ _id, count }) => {
+      summary[_id] = count;
+      summary.all += count;
+    });
+
+    return res.status(200).json({ success: true, count: hotels.length, summary, data: hotels });
+  } catch (error) {
+    console.error('Lỗi lấy danh sách khách sạn:', error);
+    return res.status(500).json({ success: false, message: 'Không thể tải danh sách khách sạn lúc này' });
+  }
+};
+
+// [PUT] /api/admin/hotels/:id/status - Duyệt (Approved) hoặc Từ chối (Rejected) khách sạn
+// Body: { status: 'Approved' | 'Rejected', reason?: string }
+exports.updateHotelStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status, reason } = req.body;
+
+  if (!mongoose.isValidObjectId(id)) {
+    return res.status(400).json({ success: false, message: 'Mã khách sạn không hợp lệ' });
+  }
+
+  if (!['Approved', 'Rejected'].includes(status)) {
+    return res.status(400).json({ success: false, message: 'Trạng thái chỉ được là Approved hoặc Rejected' });
+  }
+
+  try {
+    const hotel = await Hotel.findById(id);
     if (!hotel) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy khách sạn' });
     }
 
-    // 2. MỚI: Gọi AI dịch thông tin khách sạn thành Vector
-    console.log("Đang tạo Vector Embedding cho khách sạn...");
-    const embeddingData = await generateHotelEmbedding(hotel);
+    if (hotel.status === status) {
+      return res.status(409).json({ success: false, message: 'Khách sạn đã ở trạng thái này' });
+    }
 
-    // 3. Cập nhật trạng thái và lưu vector vào DB
-    hotel.status = 'Approved';
-    hotel.embedding = embeddingData; 
-    
-    await hotel.save(); // Lưu lại thay đổi
+    let message;
+    if (status === 'Approved') {
+      hotel.rejectionReason = undefined;
 
-    res.status(200).json({
-      success: true,
-      message: 'Đã duyệt khách sạn và tạo Vector AI thành công!',
-      data: hotel
-    });
+      // Tạo Vector Embedding cho RAG. Nếu AI lỗi thì vẫn duyệt, chỉ cảnh báo để Admin biết.
+      // (generateHotelEmbedding trả về [] khi Gemini lỗi thay vì throw)
+      console.log('Đang tạo Vector Embedding cho khách sạn...');
+      const embedding = await generateHotelEmbedding(hotel).catch((aiError) => {
+        console.error('Lỗi tạo embedding khi duyệt khách sạn:', aiError);
+        return [];
+      });
+      hotel.embedding = embedding;
+      message = embedding.length > 0
+        ? `Đã duyệt "${hotel.hotelName}" và tạo Vector AI thành công!`
+        : `Đã duyệt "${hotel.hotelName}" nhưng chưa tạo được Vector AI (khách sạn tạm thời chưa xuất hiện trong gợi ý AI).`;
+    } else {
+      hotel.rejectionReason = typeof reason === 'string' ? reason.trim().slice(0, 500) : undefined;
+      message = `Đã từ chối khách sạn "${hotel.hotelName}"`;
+    }
+
+    hotel.status = status;
+    hotel.reviewedAt = new Date();
+    await hotel.save();
+
+    const data = hotel.toObject();
+    delete data.embedding;
+    await Hotel.populate(data, { path: 'partnerId', select: 'fullName email phone' });
+
+    return res.status(200).json({ success: true, message, data });
   } catch (error) {
-    console.error("Lỗi phê duyệt khách sạn:", error);
-    res.status(500).json({ success: false, message: 'Lỗi server' });
+    console.error('Lỗi cập nhật trạng thái khách sạn:', error);
+    return res.status(500).json({ success: false, message: 'Không thể cập nhật trạng thái khách sạn lúc này' });
   }
 };
+
+// [PUT] /api/admin/hotels/:id/approve - Giữ lại để tương thích với code cũ
+exports.approveHotel = (req, res) => {
+  req.body = { ...req.body, status: 'Approved' };
+  return exports.updateHotelStatus(req, res);
+};
+
+// [PUT] /api/admin/hotels/:id/reject
+exports.rejectHotel = (req, res) => {
+  req.body = { ...req.body, status: 'Rejected' };
+  return exports.updateHotelStatus(req, res);
+};
+
 exports.evaluateGroundedness = async (req, res) => {
   try {
     // 1. Tìm các log chưa được chấm điểm Groundedness
-    const unevaluatedLogs = await RagLog.find({ 'metrics.groundedness': null }).limit(10);
+    // Bỏ qua log bị guardrail từ chối (không có ngữ cảnh để chấm)
+    const unevaluatedLogs = await RagLog.find({
+      'metrics.groundedness': null,
+      'retrievedContextIds.0': { $exists: true }
+    }).limit(10);
 
     if (unevaluatedLogs.length === 0) {
       return res.status(200).json({ message: "Tất cả logs đã được chấm điểm." });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // gemini-1.5-flash đã bị Google gỡ -> dùng cùng model với AI Search
+    const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
     let evaluatedCount = 0;
 
     for (const log of unevaluatedLogs) {
       // Lấy text thực tế từ các Context ID đã truy xuất
-      const contexts = await RoomType.find({ _id: { $in: log.retrievedContextIds } });
-      const contextText = contexts.map(c => c.description).join("\n\n");
+      // Ngữ cảnh thực tế LLM nhận được: thông tin khách sạn + các hạng phòng đã truy xuất
+      const [hotels, rooms] = await Promise.all([
+        Hotel.find({ _id: { $in: log.retrievedHotelIds || [] } }).select('hotelName description amenities address rating'),
+        RoomType.find({ _id: { $in: log.retrievedContextIds } }).select('title description basePrice amenities')
+      ]);
+      const contextText = [
+        ...hotels.map(h => `Khách sạn ${h.hotelName} (${h.address?.city}): ${h.description}. Tiện ích: ${h.amenities.join(', ')}. Điểm: ${h.rating}`),
+        ...rooms.map(r => `Phòng ${r.title}: ${r.description || ''}. Giá: ${r.basePrice}. Tiện ích: ${r.amenities.join(', ')}`)
+      ].join("\n\n");
 
       // 2. Thiết kế Prompt ép LLM làm Giám khảo
       const prompt = `
@@ -177,45 +263,52 @@ exports.evaluateGroundedness = async (req, res) => {
   }
 };
 exports.getRagAnalytics = async (req, res) => {
+  const K = 5;
   try {
-    // 1. Lấy danh sách 50 log gần nhất để hiển thị ra bảng
-    const logs = await RagLog.find().sort({ createdAt: -1 }).limit(50);
+    const [recentLogs, labeledLogs, sourceCounts, latency] = await Promise.all([
+      RagLog.find().sort({ createdAt: -1 }).limit(50),
+      // Toàn bộ log đã gắn nhãn chuẩn (Golden) để tính chỉ số truy xuất
+      RagLog.find({ 'goldenContextIds.0': { $exists: true } })
+        .select('retrievedContextIds goldenContextIds llmResponse metrics.groundedness'),
+      RagLog.aggregate([{ $group: { _id: '$answerSource', count: { $sum: 1 } } }]),
+      RagLog.aggregate([{ $match: { latencyMs: { $type: 'number' } } }, { $group: { _id: null, avg: { $avg: '$latencyMs' } } }])
+    ]);
 
-    // 2. Tính toán các chỉ số tổng quan (Aggregate)
-    // Lọc ra các log ĐÃ CÓ NHÃN CHUẨN (goldenContextIds) để tính điểm
-    const evaluatedLogs = logs.filter(log => log.goldenContextIds && log.goldenContextIds.length > 0);
-    
-    let totalHitRate = 0;
-    let totalRecall = 0;
+    const rows = labeledLogs.map((log) => evaluateQuery(
+      log.retrievedContextIds.map(String), log.goldenContextIds.map(String), K
+    ));
+    const summary = summarize(rows);
 
-    evaluatedLogs.forEach(log => {
-      // Dùng hàm giao tập hợp để tính
-      const goldenStr = log.goldenContextIds.map(id => id.toString());
-      const retrievedStr = log.retrievedContextIds.map(id => id.toString());
-      
-      const correctHits = retrievedStr.filter(id => goldenStr.includes(id)).length;
-      
-      if (correctHits > 0) totalHitRate += 1; // Tính Hit
-      if (goldenStr.length > 0) {
-        totalRecall += (correctHits / goldenStr.length); // Tính Recall
-      }
-    });
+    // Citation correctness tính trên mọi log có trích dẫn [n]
+    const citations = recentLogs
+      .map((log) => citationCorrectness(log.llmResponse, log.retrievedContextIds.length))
+      .filter((v) => v !== null);
+    const graded = await RagLog.find({ 'metrics.groundedness': { $ne: null } }).select('metrics.groundedness');
 
-    const avgHitRate = evaluatedLogs.length ? (totalHitRate / evaluatedLogs.length) * 100 : 0;
-    const avgRecall = evaluatedLogs.length ? (totalRecall / evaluatedLogs.length) : 0;
-
+    const pct = (v) => (v === null ? null : Number((v * 100).toFixed(2)));
     res.status(200).json({
       success: true,
       data: {
-        recentLogs: logs,
+        recentLogs,
         metrics: {
-          totalEvaluated: evaluatedLogs.length,
-          avgHitRate: avgHitRate.toFixed(2),
-          avgRecall: avgRecall.toFixed(4)
+          k: K,
+          totalEvaluated: summary.queries,
+          avgHitRate: pct(summary.hitRate) ?? 0,
+          avgRecall: summary.recall === null ? 0 : Number(summary.recall.toFixed(4)),
+          avgPrecision: summary.precision === null ? 0 : Number(summary.precision.toFixed(4)),
+          avgNdcg: summary.ndcg === null ? 0 : Number(summary.ndcg.toFixed(4)),
+          mrr: summary.mrr === null ? 0 : Number(summary.mrr.toFixed(4)),
+          citationCorrectness: citations.length ? pct(citations.reduce((a, b) => a + b, 0) / citations.length) : null,
+          groundednessPassRate: graded.length
+            ? pct(graded.filter((log) => log.metrics.groundedness === 1).length / graded.length)
+            : null,
+          answerSources: Object.fromEntries(sourceCounts.map((s) => [s._id || 'unknown', s.count])),
+          avgLatencyMs: latency[0] ? Math.round(latency[0].avg) : null
         }
       }
     });
   } catch (error) {
+    console.error('Lỗi RAG Analytics:', error);
     res.status(500).json({ success: false, message: 'Lỗi lấy dữ liệu RAG Analytics' });
   }
 };

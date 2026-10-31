@@ -18,6 +18,7 @@ import VNPayReturn from "./pages/VNPayReturn";
 import PartnerApplication from "./pages/PartnerApplication"; // <- MỚI
 import PartnerDashboard from "./pages/PartnerDashboard"; // <- MỚI
 import AdminDashboard from "./pages/AdminDashboard"; // <- MỚI
+import RagAnalyticsDashboard from "./pages/RagAnalyticsDashboard";
 import ProtectedRoute from "./components/ProtectedRoute"; // <- MỚI
 
 export default function App() {
@@ -94,6 +95,14 @@ export default function App() {
               element={
                 <ProtectedRoute allowedRoles={["Admin"]}>
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/rag"
+              element={
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <RagAnalyticsDashboard />
                 </ProtectedRoute>
               }
             />

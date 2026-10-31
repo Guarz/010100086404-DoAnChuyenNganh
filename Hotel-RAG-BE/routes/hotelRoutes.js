@@ -5,8 +5,8 @@ const { getAllHotels, getHotelById, getRoomsByHotel, searchHotels, getFeaturedHo
 
 router.get('/', getAllHotels);
 router.get('/search', searchHotels);
+router.get('/featured', getFeaturedHotels); // Phải đặt trước '/:id', nếu không 'featured' bị hiểu là id
 router.get('/:id', getHotelById);
 router.get('/:id/rooms', getRoomsByHotel);
-router.get('/featured', getFeaturedHotels);
 
 module.exports = router;

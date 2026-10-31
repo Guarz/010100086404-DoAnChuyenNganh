@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const querystring = require('qs'); 
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
+const mongoose = require('mongoose');
 
 const formatVNPayDate = (date) => {
   const pad = (n) => (n < 10 ? '0' + n : n);
@@ -14,7 +15,8 @@ const sortObject = (obj) => {
   let str = [];
   let key;
   for (key in obj) {
-    if (obj.hasOwnProperty(key)) {
+    // Express 5 tạo req.query không có prototype -> obj.hasOwnProperty() sẽ throw TypeError
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
       str.push(encodeURIComponent(key));
     }
   }
@@ -29,10 +31,19 @@ const sortObject = (obj) => {
 exports.createVNPayUrl = async (req, res) => {
   try {
     const { bookingId } = req.body;
-    const booking = await Booking.findById(bookingId);
-    
+    const booking = mongoose.isValidObjectId(bookingId) ? await Booking.findById(bookingId) : null;
+
+    // Chỉ chủ đơn mới được tạo link thanh toán cho đơn của mình
+    if (booking && booking.customerId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền thanh toán đơn này' });
+    }
+
     if (!booking || booking.bookingStatus !== 'Pending') {
       return res.status(400).json({ success: false, message: 'Đơn đặt phòng không hợp lệ' });
+    }
+
+    if (booking.expiresAt && booking.expiresAt <= new Date()) {
+      return res.status(410).json({ success: false, message: 'Đơn đã hết thời gian giữ chỗ, vui lòng đặt lại' });
     }
 
     const ipAddr = req.headers['x-forwarded-for'] || req.connection.remoteAddress || '127.0.0.1';
@@ -44,8 +55,8 @@ exports.createVNPayUrl = async (req, res) => {
     const date = new Date();
     const createDate = formatVNPayDate(date);
     
-    date.setMinutes(date.getMinutes() + 15);
-    const expireDate = formatVNPayDate(date);
+    // Link VNPay hết hạn cùng lúc với thời gian giữ chỗ, tránh khách trả tiền cho đơn cronjob đã hủy
+    const expireDate = formatVNPayDate(booking.expiresAt || new Date(date.getTime() + 5 * 60 * 1000));
 
     let vnp_Params = {
       'vnp_Version': '2.1.0',
@@ -101,11 +112,22 @@ exports.vnpayReturn = async (req, res) => {
       const responseCode = vnp_Params['vnp_ResponseCode'];
 
       if (responseCode === '00') {
-        const booking = await Booking.findById(bookingId);
-        if (booking && booking.bookingStatus === 'Pending') {
-          booking.bookingStatus = 'Confirmed';
-          await booking.save();
-
+        // Cập nhật nguyên tử: chỉ xác nhận nếu đơn vẫn đang Pending (chưa bị cronjob hủy)
+        const booking = await Booking.findOneAndUpdate(
+          { _id: bookingId, bookingStatus: 'Pending' },
+          { $set: { bookingStatus: 'Confirmed' }, $unset: { expiresAt: 1 } },
+          { new: true }
+        );
+        if (!booking) {
+          const existing = await Booking.findById(bookingId).select('bookingStatus');
+          if (existing?.bookingStatus === 'Canceled') {
+            return res.status(409).json({
+              success: false,
+              message: "Đơn đã hết hạn giữ chỗ trước khi thanh toán hoàn tất. Vui lòng liên hệ hỗ trợ để được hoàn tiền."
+            });
+          }
+        }
+        if (booking) {
           const payment = new Payment({
             bookingId: booking._id,
             paymentMethod: 'VNPay',
@@ -117,6 +139,16 @@ exports.vnpayReturn = async (req, res) => {
         }
         return res.status(200).json({ success: true, message: "Giao dịch thành công" });
       } else {
+        // Ghi nhận giao dịch thất bại để đối soát (đơn vẫn Pending, cronjob sẽ hủy và hoàn quỹ)
+        const booking = await Booking.findById(bookingId).select('totalAmount');
+        if (booking) {
+          await Payment.create({
+            bookingId: booking._id,
+            paymentMethod: 'VNPay',
+            amount: booking.totalAmount,
+            paymentStatus: 'Failed'
+          });
+        }
         return res.status(400).json({ success: false, message: "Giao dịch bị hủy hoặc thất bại" });
       }
     } else {
