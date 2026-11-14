@@ -259,7 +259,8 @@ npm run build
 
 ## Lưu ý triển khai
 
-- URL `localhost` chỉ dùng khi frontend và backend chạy trên cùng máy phát triển. Khi deploy, cập nhật `baseURL` frontend thành địa chỉ API thật.
+- **Deploy lên Render:** xem [docs/deploy-render.md](docs/deploy-render.md). File `render.yaml` khai báo sẵn backend (Web Service) và frontend (Static Site); mẫu biến môi trường ở `.env.example` và `Hotel-RAG-FE/.env.example`.
+- URL `localhost` chỉ dùng khi frontend và backend chạy trên cùng máy phát triển. Khi deploy, đặt biến `VITE_API_URL` (frontend) thành địa chỉ API thật; có thể giới hạn domain gọi API bằng `CORS_ORIGIN` (backend).
 - Không commit `.env`, mật khẩu database, JWT secret hoặc Gemini API key.
 - VNPay đang ở mức Prototype: cần cấu hình `VNP_TMN_CODE`, `VNP_HASH_SECRET`, `VNP_URL`, `VNP_RETURN_URL` và kiểm thử trên sandbox trước khi trình diễn.
 - Booking chỉ tạo được khi tồn kho có đủ bản ghi cho toàn bộ ngày lưu trú. Tạo booking trừ tồn kho ngay (giữ chỗ 5 phút); cronjob mỗi phút hủy đơn Pending quá hạn và hoàn tồn kho.

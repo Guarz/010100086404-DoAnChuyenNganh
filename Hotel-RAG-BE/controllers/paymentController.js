@@ -65,7 +65,8 @@ exports.createVNPayUrl = async (req, res) => {
       return res.status(410).json({ success: false, message: 'Đơn đã hết thời gian giữ chỗ, vui lòng đặt lại' });
     }
 
-    const ipAddr = req.headers['x-forwarded-for'] || req.connection.remoteAddress || '127.0.0.1';
+    // Sau proxy (Render...) header có dạng "ip-khách, ip-proxy" -> chỉ lấy IP đầu tiên cho VNPay
+    const ipAddr = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
     const tmnCode = process.env.VNP_TMN_CODE;
     const secretKey = process.env.VNP_HASH_SECRET;
     const vnpUrl = process.env.VNP_URL;

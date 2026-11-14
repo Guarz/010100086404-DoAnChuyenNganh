@@ -19,7 +19,9 @@ const transferRoutes = require('./routes/transferRoutes');
 module.exports = function createApp() {
   const app = express();
 
-  app.use(cors());
+  // CORS_ORIGIN (tùy chọn): danh sách domain frontend, cách nhau dấu phẩy. Không đặt = cho phép mọi nguồn.
+  const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean);
+  app.use(cors(allowedOrigins.length ? { origin: allowedOrigins } : undefined));
   app.use(express.json());
 
   app.get('/api/health', (req, res) => {

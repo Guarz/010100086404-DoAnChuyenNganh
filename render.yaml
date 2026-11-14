@@ -1,0 +1,63 @@
+# Render Blueprint: tạo cùng lúc backend (API) và frontend (trang web) từ repo này.
+# Cách dùng: Render Dashboard -> New -> Blueprint -> chọn repo -> nhập các biến "sync: false".
+# Chi tiết: docs/deploy-render.md
+services:
+  # ---------- Backend: Express + MongoDB Atlas (server.js ở thư mục gốc) ----------
+  - type: web
+    name: nestly-api
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      # Gemini: vẫn cần cho bước tạo vector (embedding) của RAG
+      - key: GEMINI_API_KEY
+        sync: false
+      # Model viết câu trả lời: Ollama chạy trên Google Colab, gọi qua URL tunnel Cloudflare
+      # (xem docs/colab-ollama.md). Đổi thành "gemini" nếu không dùng Colab.
+      - key: LLM_PROVIDER
+        value: ollama
+      - key: OLLAMA_URL
+        sync: false # https://<chuoi>.trycloudflare.com (đổi mỗi phiên Colab)
+      - key: OLLAMA_API_KEY
+        sync: false # khóa in ra ở ô 6 của notebook Colab (đổi mỗi phiên)
+      - key: OLLAMA_MODEL
+        value: dolphin3
+      - key: OLLAMA_TIMEOUT_MS
+        value: "120000"
+      - key: VNP_TMN_CODE
+        sync: false
+      - key: VNP_HASH_SECRET
+        sync: false
+      - key: VNP_URL
+        value: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+      - key: VNP_RETURN_URL
+        sync: false # https://<tên-frontend>.onrender.com/payment/vnpay-return
+      - key: CORS_ORIGIN
+        sync: false # https://<tên-frontend>.onrender.com
+
+  # ---------- Frontend: React + Vite, build ra trang tĩnh ----------
+  - type: web
+    name: nestly-web
+    runtime: static
+    rootDir: Hotel-RAG-FE
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      # React Router: mọi đường dẫn (/hotels/..., /transfers...) đều trả về index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: VITE_API_URL
+        sync: false # https://<tên-backend>.onrender.com/api
