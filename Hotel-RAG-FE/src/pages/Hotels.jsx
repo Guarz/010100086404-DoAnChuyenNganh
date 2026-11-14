@@ -7,6 +7,8 @@ import useProvinceCounts from "../hooks/useProvinceCounts";
 import { VN_PROVINCES } from "../constants/provinces";
 import API from "../services/api";
 
+const AMENITY_PREVIEW = 8; // số tiện nghi phổ biến hiện sẵn trong bộ lọc
+
 // Hàm tiện ích lấy ngày mặc định
 const getFormattedDate = (addDays = 0) => {
   const date = new Date();
@@ -41,6 +43,13 @@ export default function Hotels() {
   const [facets, setFacets] = useState([]);
   const [showFilters, setShowFilters] = useState(false); // chỉ dùng trên điện thoại
   const selectedAmenities = (queryParams.get("amenities") || "").split(",").filter(Boolean);
+  // Danh sách dài: mặc định hiện các tiện nghi phổ biến nhất, bấm "Xem thêm" để mở hết.
+  // Tiện nghi đang chọn luôn hiện dù nằm ngoài nhóm phổ biến.
+  const [showAllAmenities, setShowAllAmenities] = useState(false);
+  const visibleFacets = showAllAmenities
+    ? facets
+    : facets.filter((f, i) => i < AMENITY_PREVIEW || selectedAmenities.includes(f.label));
+  const hiddenFacetCount = facets.length - visibleFacets.length;
   const [sort, setSort] = useState("Đề xuất");
 
   // === 2. CÁC HÀM XỬ LÝ TÌM KIẾM ===
@@ -379,7 +388,9 @@ export default function Hotels() {
 
         <div className="mt-6 grid gap-6 lg:mt-9 lg:grid-cols-[260px_1fr] lg:gap-9">
           <aside
-            className={`h-fit rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 lg:sticky lg:top-28 lg:block ${showFilters ? "block" : "hidden"}`}
+            id="amenity-filter"
+            aria-label="Lọc theo tiện nghi"
+            className={`h-fit rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 lg:sticky lg:top-28 lg:block lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:overscroll-contain ${showFilters ? "block" : "hidden"}`}
           >
             <div className="flex items-center justify-between">
               <h2 className="font-display text-xl font-semibold text-[#173b31]">
@@ -402,10 +413,10 @@ export default function Hotels() {
               {facets.length === 0 && (
                 <p className="text-sm text-stone-400">Đang tải...</p>
               )}
-              {facets.map((facet) => (
+              {visibleFacets.map((facet) => (
                 <label
                   key={facet.label}
-                  className="flex cursor-pointer items-center gap-2.5 text-sm text-stone-600"
+                  className="flex min-h-6 cursor-pointer items-center gap-2.5 text-sm text-stone-600 hover:text-[#173b31]"
                 >
                   <input
                     type="checkbox"
@@ -413,11 +424,25 @@ export default function Hotels() {
                     onChange={() => toggleAmenity(facet.label)}
                     className="size-4 shrink-0 accent-[#173b31]"
                   />
-                  <span className="min-w-0 flex-1 truncate">{facet.label}</span>
-                  <span className="text-xs text-stone-400">{facet.count}</span>
+                  <span className="min-w-0 flex-1 break-words">{facet.label}</span>
+                  <span className="text-xs tabular-nums text-stone-400">{facet.count}</span>
                 </label>
               ))}
             </div>
+            {(hiddenFacetCount > 0 || showAllAmenities) && facets.length > AMENITY_PREVIEW && (
+              <button
+                type="button"
+                onClick={() => setShowAllAmenities(!showAllAmenities)}
+                aria-expanded={showAllAmenities}
+                aria-controls="amenity-filter"
+                className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 py-2.5 text-sm font-bold text-[#173b31] transition hover:bg-stone-50"
+              >
+                {showAllAmenities ? "Thu gọn" : `Xem thêm ${hiddenFacetCount} tiện nghi`}
+                <span className={`inline-flex transition-transform ${showAllAmenities ? "rotate-180" : ""}`}>
+                  <Icon name="chevron" size={16} />
+                </span>
+              </button>
+            )}
           </aside>
 
           <section className="grid gap-6 sm:grid-cols-2">
