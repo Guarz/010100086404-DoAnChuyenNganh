@@ -147,6 +147,13 @@ Chỉ các khách sạn đã có embedding mới phù hợp với tìm kiếm ve
 - Route `/partner` dành cho role `Partner` hoặc `Admin`; backend bảo vệ API tạo khách sạn, loại phòng và cập nhật tồn kho bằng JWT/role.
 - **Lưu ý:** dashboard đối tác vẫn hiển thị một phần số liệu và nội dung mẫu, chưa nối hoàn chỉnh để quản lý dữ liệu thực.
 
+### Nhà xe (Transport) — xe đưa đón
+
+- Khách hàng đã đăng nhập vào **Đăng ký làm nhà xe** (`/transport-apply`): tên nhà xe, SĐT, số giấy phép kinh doanh vận tải, thành phố phục vụ. Admin duyệt ở tab **Duyệt nhà xe** → role chuyển thành `Transport` (gỡ duyệt → trả về `Customer`).
+- **Trung tâm nhà xe** (`/transport`): thêm/sửa/ẩn loại xe (số chỗ, vali, tổng số xe, tiện nghi, ảnh), thêm tuyến (điểm đón → điểm trả, giá trọn gói / xe), chỉnh số xe trống theo khoảng ngày, xem đơn và bấm "Đã đón khách".
+- Khách tìm xe ở **Xe đưa đón** (`/transfers`) theo thành phố / khách sạn, ngày, số khách (tự tính số xe cần), giữ xe 5 phút và thanh toán VNPay như đơn phòng. Trang chi tiết khách sạn, trang thanh toán thành công và lịch sử đặt phòng có lối tắt "Đặt xe đưa đón".
+- Cùng cơ chế với đặt phòng: trừ xe nguyên tử theo ngày, `Idempotency-Key`, cronjob hủy đơn quá hạn và trả xe.
+
 ### Quản trị viên (Admin)
 
 - Có route `/admin` dành cho role `Admin`.
@@ -163,6 +170,7 @@ Ma trận phân quyền đầy đủ của mọi endpoint: [`docs/security-rbac.
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | Công khai | Kiểm tra API |
 | `GET` | `/api/hotels`, `/api/hotels/search`, `/api/hotels/featured` | Công khai | Danh sách / tìm kiếm (`?amenities=Hồ bơi,Spa` lọc theo tiện nghi, trả `priceFrom`) / top 8 khách sạn |
+| `GET` | `/api/hotels/provinces` | Công khai | 63 tỉnh/thành (A→Z) kèm số khách sạn; bộ lọc gửi `?province=` cho `/api/hotels/search` |
 | `GET` | `/api/hotels/amenities` | Công khai | Danh mục tiện nghi chuẩn kèm số khách sạn (dùng cho bộ lọc) |
 | `GET` | `/api/hotels/:id`, `/api/hotels/:id/rooms` | Công khai | Chi tiết KS, hạng phòng + giá động theo ngày |
 | `POST` | `/api/auth/register`, `/api/auth/login` | Công khai | Đăng ký, đăng nhập (JWT) |
@@ -189,6 +197,14 @@ Ma trận phân quyền đầy đủ của mọi endpoint: [`docs/security-rbac.
 | `GET` | `/api/admin/hotels?status=` | Admin | Toàn bộ KS theo trạng thái |
 | `PUT` | `/api/admin/hotels/:id/status` | Admin | Duyệt (`Approved`, tạo embedding) / từ chối (`Rejected`) |
 | `GET/POST` | `/api/admin/rag-analytics`, `/api/admin/rag/evaluate` | Admin | Chỉ số RAG, chấm Groundedness |
+| `GET` | `/api/transfers/provinces`, `/api/transfers/search?province=\|hotelId=&date=&passengers=` | Công khai | 63 tỉnh kèm số tuyến xe / tìm xe đưa đón còn trống |
+| `POST` | `/api/transfers` | Đăng nhập | Đặt xe, giữ xe 5 phút; header `Idempotency-Key` |
+| `GET/PUT` | `/api/transfers/my`, `/api/transfers/:id`, `PUT /api/transfers/:id/cancel` | Chủ đơn | Lịch sử / chi tiết / hủy đơn xe |
+| `POST` | `/api/payments/vnpay/create_url` body `{ transferBookingId }` | Chủ đơn | Thanh toán đơn xe (dùng chung VNPay) |
+| `GET/POST/PUT` | `/api/transport/my-company`, `/api/transport/apply` | Đăng nhập | Hồ sơ nhà xe / đăng ký làm nhà xe |
+| `GET/POST/PUT` | `/api/transport/vehicles[/:vehicleId]`, `/vehicles/:vehicleId/routes`, `/routes/:routeId`, `/vehicles/:vehicleId/inventory` | Nhà xe (của mình), Admin | Loại xe, tuyến, số xe trống theo ngày |
+| `GET/PUT` | `/api/transport/bookings`, `/api/transport/bookings/:id/complete` | Nhà xe | Đơn đặt xe + thống kê, xác nhận đã đón |
+| `GET/PUT` | `/api/admin/transport-companies`, `/api/admin/transport-companies/:id/status` | Admin | Duyệt / từ chối / gỡ duyệt nhà xe |
 
 ## Kiểm thử và đánh giá
 
@@ -227,6 +243,7 @@ node Hotel-RAG-BE/scripts/seedMockData.js --embeddings   # thêm: tạo lại ve
 | [`docs/booking-concurrency.md`](docs/booking-concurrency.md) | Chống oversell, rollback, idempotency |
 | [`docs/security-rbac.md`](docs/security-rbac.md) | Ma trận phân quyền, lỗ hổng đã vá |
 | [`docs/implementation-status.md`](docs/implementation-status.md) | Implemented / Prototype / Mock / Planned |
+| [`docs/erd.mmd`](docs/erd.mmd), [`docs/data-dictionary.md`](docs/data-dictionary.md) | Sơ đồ ERD (Mermaid) và giải thích từng trường dữ liệu |
 | [`docs/local-llm-dolphin.md`](docs/local-llm-dolphin.md) | Chạy Dolphin 3.0 Llama 3.1 8B local qua Ollama |
 | [`docs/aws-ollama.md`](docs/aws-ollama.md) | Chạy Ollama trên AWS EC2 GPU, kết nối an toàn bằng SSH tunnel / reverse proxy |
 | [`docs/colab-ollama.md`](docs/colab-ollama.md) | Chạy Dolphin 3.0 trên Google Colab (GPU T4 miễn phí) qua tunnel có khóa — notebook `colab/ollama_dolphin_colab.ipynb` |

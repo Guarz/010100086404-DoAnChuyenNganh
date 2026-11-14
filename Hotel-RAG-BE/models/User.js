@@ -1,5 +1,6 @@
 // File: models/User.js
 const mongoose = require('mongoose');
+const { provinceSchemaType } = require('../constants/provinces');
 
 const userSchema = new mongoose.Schema({
   fullName: { type: String, required: true }, // Cập nhật từ 'name'
@@ -8,7 +9,7 @@ const userSchema = new mongoose.Schema({
   phone: String,
   role: { 
     type: String, 
-    enum: ['Customer', 'Partner', 'Admin'], // Chuẩn hóa viết hoa chữ đầu
+    enum: ['Customer', 'Partner', 'Transport', 'Admin'], // Transport = nhà xe đưa đón
     default: 'Customer' 
   },
   partnerApplicationStatus: {
@@ -24,7 +25,7 @@ const userSchema = new mongoose.Schema({
   address: { // Nhúng object Address
     street: String,
     city: String,
-    province: String
+    province: provinceSchemaType() // Không bắt buộc, nhưng nếu có phải thuộc 63 tỉnh/thành
   }
 }, { timestamps: true });
 

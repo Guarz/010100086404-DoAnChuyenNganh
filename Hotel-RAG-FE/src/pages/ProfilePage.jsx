@@ -1,12 +1,14 @@
 // File: src/pages/ProfilePage.jsx
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import TransferHistory from "../components/TransferHistory";
 import Icon from "../components/Icon";
 import StarRating from "../components/StarRating";
 import API from "../services/api";
 
 export default function ProfilePage({ onLogout }) {
-  const [active, setActive] = useState("personal");
+  const [searchParams] = useSearchParams();
+  const [active, setActive] = useState(() => (searchParams.get("tab") === "transfers" ? "transfers" : "personal"));
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
@@ -144,12 +146,13 @@ export default function ProfilePage({ onLogout }) {
   };
   
   const avatarText = getInitials(currentUser.fullName);
-  const displayRole = currentUser.role === "Partner" ? "ĐỐI TÁC NESTLY" : (currentUser.role === "Admin" ? "QUẢN TRỊ VIÊN" : "THÀNH VIÊN NESTLY");
+  const displayRole = { Partner: "ĐỐI TÁC NESTLY", Admin: "QUẢN TRỊ VIÊN", Transport: "NHÀ XE NESTLY" }[currentUser.role] || "THÀNH VIÊN NESTLY";
 
   const navItems = [
     { id: "personal", label: "Thông tin cá nhân", icon: "users" },
     { id: "security", label: "Mật khẩu & bảo mật", icon: "shield" },
     { id: "booking", label: "Lịch sử đặt chỗ", icon: "calendar" },
+    { id: "transfers", label: "Xe đưa đón", icon: "car" },
   ];
 
   const handleLogoutClick = () => {
@@ -341,6 +344,14 @@ export default function ProfilePage({ onLogout }) {
                             <p>Nhận phòng: <strong>{new Date(booking.checkInDate).toLocaleDateString("vi-VN")}</strong></p>
                             <p>Trả phòng: <strong>{new Date(booking.checkOutDate).toLocaleDateString("vi-VN")}</strong></p>
                           </div>
+                          {booking.bookingStatus === "Confirmed" && (
+                            <Link
+                              to={`/transfers?hotelId=${booking.hotelId?._id || booking.hotelId}&hotelBookingId=${booking._id}&date=${new Date(new Date(booking.checkInDate).getTime() + 7 * 3600000).toISOString().slice(0, 10)}`}
+                              className="mt-3 inline-flex w-fit items-center gap-2 rounded-xl bg-[#f2f7f5] px-3 py-2 text-xs font-bold text-[#173b31] hover:bg-[#e8f2ed]"
+                            >
+                              <Icon name="car" size={16} /> Đặt xe đưa đón cho chuyến này
+                            </Link>
+                          )}
 
                           <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
                             {booking.bookingDetails.map((detail) => (
@@ -423,6 +434,8 @@ export default function ProfilePage({ onLogout }) {
                 )}
               </section>
             )}
+
+            {active === "transfers" && <TransferHistory />}
           </section>
         </div>
       </div>

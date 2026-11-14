@@ -2,6 +2,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Icon from "../components/Icon";
+import ProvinceSelect from "../components/ProvinceSelect";
+import useProvinceCounts from "../hooks/useProvinceCounts";
+import { VN_PROVINCES } from "../constants/provinces";
 import API from "../services/api";
 
 // Hàm tiện ích lấy ngày mặc định
@@ -23,8 +26,10 @@ export default function Hotels() {
 
   // === 1. STATE QUẢN LÝ THANH TÌM KIẾM TRỰC TIẾP ===
   const [showGuestMenu, setShowGuestMenu] = useState(false);
+  const provinceCounts = useProvinceCounts("/hotels/provinces", "hotelCount");
   const [searchData, setSearchData] = useState({
-    city: queryParams.get("city") || "",
+    // ?city= của link cũ: nếu đúng tên tỉnh thì hiểu là tỉnh
+    province: queryParams.get("province") || (VN_PROVINCES.includes(queryParams.get("city")) ? queryParams.get("city") : ""),
     checkIn: queryParams.get("checkIn") || getFormattedDate(0),
     checkOut: queryParams.get("checkOut") || getFormattedDate(1),
     adults: parseInt(queryParams.get("adults")) || 2,
@@ -53,9 +58,21 @@ export default function Hotels() {
     // Đóng menu nếu đang mở
     setShowGuestMenu(false);
     // Thay đổi URL để kích hoạt useEffect bên dưới (không reload trang), giữ nguyên bộ lọc tiện nghi
-    const params = new URLSearchParams(searchData);
+    navigate(`/hotels?${buildParams(searchData).toString()}`);
+  };
+
+  const buildParams = (data) => {
+    const params = new URLSearchParams(data);
+    if (!data.province) params.delete("province"); // trống = toàn quốc
     if (selectedAmenities.length) params.set("amenities", selectedAmenities.join(","));
-    navigate(`/hotels?${params.toString()}`);
+    return params;
+  };
+
+  // Đổi tỉnh/thành là lọc ngay, không cần bấm Cập nhật
+  const changeProvince = (province) => {
+    const next = { ...searchData, province };
+    setSearchData(next);
+    navigate(`/hotels?${buildParams(next).toString()}`, { replace: true });
   };
 
   // Bật/tắt 1 tiện nghi -> cập nhật URL -> useEffect gọi lại API
@@ -112,18 +129,17 @@ export default function Hotels() {
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-5 sm:py-6 lg:px-8">
           <div className="relative grid gap-3 rounded-2xl border border-stone-200 p-3 shadow-sm md:grid-cols-2 lg:grid-cols-[1.5fr_2fr_1.5fr_auto]">
             {/* Điểm đến */}
-            <label className="rounded-xl bg-stone-50 px-4 py-2 hover:bg-stone-100 cursor-text flex flex-col justify-center">
+            <label className="rounded-xl bg-stone-50 px-4 py-2 hover:bg-stone-100 cursor-pointer flex flex-col justify-center">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-stone-400">
-                Điểm đến
+                Điểm đến (Tỉnh/TP)
               </span>
-              <input
-                type="text"
-                value={searchData.city}
-                onChange={(e) =>
-                  setSearchData({ ...searchData, city: e.target.value })
-                }
-                className="mt-1 w-full bg-transparent font-bold text-stone-800 outline-none placeholder-stone-300"
-                placeholder="Tất cả địa điểm"
+              <ProvinceSelect
+                value={searchData.province}
+                onChange={(e) => changeProvince(e.target.value)}
+                counts={provinceCounts}
+                countUnit=" KS"
+                placeholder="Tất cả tỉnh/thành"
+                className="mt-1 w-full cursor-pointer bg-transparent font-bold text-stone-800 outline-none"
               />
             </label>
 
@@ -355,7 +371,7 @@ export default function Hotels() {
                 className="rounded-full bg-[#173b31] px-3 py-1.5 text-xs font-bold text-white"
                 aria-label={`Bỏ lọc ${label}`}
               >
-                {label} ✕
+                {label} <Icon name="x" size={12} />
               </button>
             ))}
           </div>
@@ -435,6 +451,7 @@ export default function Hotels() {
                           "https://images.unsplash.com/photo-1569335468885-d7d1a41e570c?w=800"
                         }
                         alt={hotel.hotelName}
+                        loading="lazy"
                         className="size-full object-cover"
                       />
                       <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold">
@@ -448,7 +465,7 @@ export default function Hotels() {
                             {hotel.hotelName}
                           </h3>
                           <p className="mt-1 truncate text-sm text-stone-500">
-                            {[hotel.address?.street, hotel.address?.city].filter(Boolean).join(", ")}
+                            {[hotel.address?.street, hotel.address?.city, hotel.address?.province].filter((v, i, a) => v && a.indexOf(v) === i).join(", ")}
                           </p>
                         </div>
                         {hotel.reviewCount > 0 ? (

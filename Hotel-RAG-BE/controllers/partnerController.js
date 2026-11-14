@@ -7,6 +7,7 @@ const RoomInventory = require("../models/RoomInventory");
 const Booking = require("../models/Booking");
 const { sanitizeAmenities, sanitizeImages } = require("../services/amenityCatalog");
 const { generateHotelEmbedding } = require("../services/aiService");
+const { normalizeProvince } = require("../constants/provinces");
 
 exports.getApplicationStatus = async (req, res) => {
   try {
@@ -41,7 +42,7 @@ exports.applyForPartner = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Không tìm thấy tài khoản" });
-    if (user.role === "Admin" || user.role === "Partner") {
+    if (["Admin", "Partner", "Transport"].includes(user.role)) {
       return res.status(409).json({
         success: false,
         message: "Tài khoản của bạn đã có quyền đối tác hoặc quản trị",
@@ -153,6 +154,11 @@ exports.createHotel = async (req, res) => {
           "Vui lòng cung cấp đủ thông tin bắt buộc (tên, mô tả, thành phố)",
       });
     }
+    // Tỉnh/TP phải chọn từ danh mục 63 tỉnh thành
+    const province = normalizeProvince(address.province);
+    if (!province) {
+      return res.status(400).json({ success: false, message: "Vui lòng chọn Tỉnh/TP trong danh sách 63 tỉnh thành" });
+    }
     let cleanAmenities, cleanImages;
     try {
       cleanAmenities = sanitizeAmenities(amenities || []);
@@ -166,7 +172,7 @@ exports.createHotel = async (req, res) => {
       partnerId: req.user.id,
       hotelName,
       description,
-      address,
+      address: { street: address.street, city: address.city, province },
       // Nếu có tọa độ thì cấu hình chuẩn GeoJSON của MongoDB
       coordinates:
         coordinates && coordinates.length === 2
@@ -601,8 +607,9 @@ exports.updateHotel = async (req, res) => {
       update.address = {
         street: textField(address.street ?? hotel.address?.street ?? "", { min: 1, max: 200, label: "Địa chỉ" }),
         city: textField(address.city ?? hotel.address?.city ?? "", { min: 1, max: 100, label: "Quận/Thành phố" }),
-        province: textField(address.province ?? hotel.address?.province ?? "", { min: 1, max: 100, label: "Tỉnh/TP" }),
+        province: normalizeProvince(address.province ?? hotel.address?.province ?? ""),
       };
+      if (!update.address.province) throw new Error("Vui lòng chọn Tỉnh/TP trong danh sách 63 tỉnh thành");
     }
     if (amenities !== undefined) update.amenities = sanitizeAmenities(amenities);
     if (images !== undefined) update.images = sanitizeImages(images);

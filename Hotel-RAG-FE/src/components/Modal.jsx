@@ -2,6 +2,7 @@
 // Khung modal dùng chung: trên điện thoại trượt lên từ đáy và chiếm gần hết màn hình,
 // trên máy tính hiển thị giữa màn hình. Đóng bằng nút ✕, phím Esc hoặc bấm ra ngoài.
 import { useEffect } from "react";
+import Icon from "./Icon";
 
 export default function Modal({ title, subtitle, onClose, children, maxWidth = "max-w-2xl" }) {
   useEffect(() => {
@@ -35,7 +36,7 @@ export default function Modal({ title, subtitle, onClose, children, maxWidth = "
             aria-label="Đóng"
             className="grid size-10 shrink-0 place-items-center rounded-full bg-stone-100 font-bold hover:bg-stone-200"
           >
-            ✕
+            <Icon name="x" size={18} />
           </button>
         </div>
         <div className="overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">{children}</div>

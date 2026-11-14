@@ -5,6 +5,8 @@
 const cron = require('node-cron');
 const Booking = require('../models/Booking');
 const { cancelPendingBooking, expiredPendingFilter } = require('../services/inventoryService');
+const TransferBooking = require('../models/TransferBooking');
+const { cancelPendingTransfer, expiredPendingTransferFilter } = require('../services/transferService');
 
 const TIMEZONE = 'Asia/Ho_Chi_Minh';
 let isReleasing = false; // Chặn 2 lượt quét chồng lên nhau nếu lượt trước chạy lâu
@@ -31,6 +33,20 @@ const releaseExpiredBookings = async () => {
     if (canceledCount > 0) {
       console.log(`[Cron] Đã hủy ${canceledCount} đơn quá hạn thanh toán và hoàn quỹ phòng`);
     }
+
+    // Đơn xe đưa đón quá hạn thanh toán -> hủy và trả xe
+    const expiredTransfers = await TransferBooking.find(expiredPendingTransferFilter()).select('_id').lean();
+    let canceledTransfers = 0;
+    for (const { _id } of expiredTransfers) {
+      try {
+        if (await cancelPendingTransfer({ _id })) canceledTransfers++;
+      } catch (error) {
+        console.error(`[Cron] Lỗi hủy đơn xe ${_id}:`, error.message);
+      }
+    }
+    if (canceledTransfers > 0) {
+      console.log(`[Cron] Đã hủy ${canceledTransfers} đơn xe quá hạn thanh toán và trả xe`);
+    }
   } catch (error) {
     console.error('[Cron] Lỗi quét đơn quá hạn:', error.message);
   } finally {
@@ -50,6 +66,15 @@ const completeFinishedStays = async () => {
 
     if (result.modifiedCount > 0) {
       console.log(`[Cron] Đã chuyển ${result.modifiedCount} đơn sang Completed`);
+    }
+
+    // Đơn xe đã qua giờ đón -> Completed
+    const transfers = await TransferBooking.updateMany(
+      { status: 'Confirmed', pickupTime: { $lte: startOfToday } },
+      { $set: { status: 'Completed' } }
+    );
+    if (transfers.modifiedCount > 0) {
+      console.log(`[Cron] Đã chuyển ${transfers.modifiedCount} đơn xe sang Completed`);
     }
   } catch (error) {
     console.error('[Cron] Lỗi cập nhật đơn hoàn thành:', error.message);

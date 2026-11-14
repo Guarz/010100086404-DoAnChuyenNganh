@@ -2,7 +2,12 @@
 const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema({
-  bookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', required: true },
+  // Thanh toán cho đơn phòng HOẶC đơn xe đưa đón (đúng một trong hai)
+  bookingId: {
+    type: mongoose.Schema.Types.ObjectId, ref: 'Booking',
+    required: function () { return !this.transferBookingId; }
+  },
+  transferBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'TransferBooking' },
   paymentMethod: {
     type: String,
     enum: ['VNPay', 'Momo', 'Cash', 'Demo'],

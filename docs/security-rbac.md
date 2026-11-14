@@ -19,7 +19,13 @@ Ký hiệu: ✅ được phép · 🔒 chỉ trên tài nguyên **của mình** 
 
 | Endpoint | Khách vãng lai | Customer | Partner | Admin |
 |---|---|---|---|---|
-| `GET /api/hotels`, `/hotels/search`, `/hotels/amenities`, `/hotels/:id`, `/hotels/:id/rooms`, `GET /api/reviews/hotel/:id`, `POST /api/ai/search` | 🌐 | 🌐 | 🌐 | 🌐 |
+| `GET /api/transfers/provinces`, `/transfers/search` | 🌐 | 🌐 | 🌐 | 🌐 |
+| `POST /api/transfers`, `GET /transfers/my`, `GET /transfers/:id`, `PUT /transfers/:id/cancel` | ❌ | 🔒 đơn xe của mình | 🔒 | 🔒 |
+| `GET /api/transport/my-company`, `POST /transport/apply` | ❌ | ✅ (apply: chỉ Customer) | ❌ apply 409 | ❌ apply 409 |
+| `PUT /transport/my-company`, `GET/POST /transport/vehicles`, `GET /transport/bookings`, `PUT /transport/bookings/:id/complete` | ❌ | ❌ | ❌ | ❌ — **chỉ role `Transport`** có hồ sơ `Approved`, 🔒 dữ liệu nhà xe mình |
+| `PUT /transport/vehicles/:vehicleId`, `POST /transport/vehicles/:vehicleId/routes`, `PUT /transport/routes/:routeId`, `GET/PUT /transport/vehicles/:vehicleId/inventory` | ❌ | ❌ | ❌ | ✅ (Transport: 🔒 xe/tuyến của mình) |
+| `GET /api/admin/transport-companies`, `PUT /admin/transport-companies/:id/status` | ❌ | ❌ | ❌ | ✅ |
+| `GET /api/hotels`, `/hotels/search`, `/hotels/provinces`, `/hotels/amenities`, `/hotels/:id`, `/hotels/:id/rooms`, `GET /api/reviews/hotel/:id`, `POST /api/ai/search` | 🌐 | 🌐 | 🌐 | 🌐 |
 | `POST /api/auth/register`, `/auth/login` | 🌐 | 🌐 | 🌐 | 🌐 |
 | `GET/PUT /api/users/me`, `PUT /users/me/password` | ❌ | 🔒 | 🔒 | 🔒 |
 | `POST /api/bookings`, `GET /bookings/my-bookings`, `GET /bookings/:id`, `PUT /bookings/:id/cancel` | ❌ | 🔒 | 🔒 | 🔒 |
@@ -54,6 +60,13 @@ Ký hiệu: ✅ được phép · 🔒 chỉ trên tài nguyên **của mình** 
 - 403: Partner B thêm phòng / khóa phòng / sửa giá / xem quỹ / xem đơn / xác nhận trả phòng trên khách sạn của Partner A.
 - Khách B không xem / hủy / thanh toán / đánh giá đơn của khách A.
 - Positive: chủ khách sạn và Admin được phép; dữ liệu sai bị từ chối 400.
+
+`Hotel-RAG-BE/tests/transfer.test.js` (xe đưa đón):
+
+- 403: Customer quản lý xe / xem đơn nhà xe; nhà xe gọi API Admin.
+- 403: Nhà xe B sửa loại xe, thêm/sửa tuyến, xem/sửa lịch xe, xác nhận đơn của nhà xe A.
+- 404/403: khách khác hủy / thanh toán đơn xe; gắn đơn phòng của người khác.
+- Đồng thời: còn 1 xe, 2 khách đặt cùng lúc → đúng 1 đơn; cùng `Idempotency-Key` → 1 đơn, trừ xe 1 lần.
 
 ## 5. Còn lại (chưa xử lý)
 

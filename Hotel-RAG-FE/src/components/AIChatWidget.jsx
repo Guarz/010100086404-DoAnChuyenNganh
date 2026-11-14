@@ -99,7 +99,7 @@ export default function AIChatWidget() {
                 <p className="text-[11px] text-white/70">Tìm khách sạn thông minh bằng RAG</p>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="rounded-full p-1 hover:bg-white/20">✕</button>
+            <button type="button" onClick={() => setIsOpen(false)} aria-label="Đóng trợ lý AI" className="grid size-9 place-items-center rounded-full hover:bg-white/20"><Icon name="x" size={18} /></button>
           </div>
 
           {/* Body Lịch sử Chat */}

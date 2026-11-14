@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const querystring = require('qs'); 
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
+const TransferBooking = require('../models/TransferBooking');
 const mongoose = require('mongoose');
 
 const formatVNPayDate = (date) => {
@@ -27,19 +28,37 @@ const sortObject = (obj) => {
   return sorted;
 };
 
-// 1. TẠO URL THANH TOÁN VNPAY
+// Hai loại đơn dùng chung luồng thanh toán VNPay: đơn phòng và đơn xe đưa đón
+const PAYABLE = {
+  hotel: { Model: Booking, statusField: 'bookingStatus', paymentKey: 'bookingId' },
+  transfer: { Model: TransferBooking, statusField: 'status', paymentKey: 'transferBookingId' }
+};
+
+// Tìm đơn theo mã giao dịch (vnp_TxnRef = _id của đơn); ObjectId không trùng giữa 2 collection
+const findPayable = async (id, kind) => {
+  if (!mongoose.isValidObjectId(id)) return null;
+  for (const type of kind ? [kind] : ['hotel', 'transfer']) {
+    const doc = await PAYABLE[type].Model.findById(id);
+    if (doc) return { type, doc, ...PAYABLE[type] };
+  }
+  return null;
+};
+
+// 1. TẠO URL THANH TOÁN VNPAY  Body: { bookingId } (đơn phòng) hoặc { transferBookingId } (đơn xe)
 exports.createVNPayUrl = async (req, res) => {
   try {
-    const { bookingId } = req.body;
-    const booking = mongoose.isValidObjectId(bookingId) ? await Booking.findById(bookingId) : null;
+    const isTransfer = Boolean(req.body.transferBookingId);
+    const bookingId = isTransfer ? req.body.transferBookingId : req.body.bookingId;
+    const target = await findPayable(bookingId, isTransfer ? 'transfer' : 'hotel');
+    const booking = target?.doc;
 
     // Chỉ chủ đơn mới được tạo link thanh toán cho đơn của mình
     if (booking && booking.customerId.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền thanh toán đơn này' });
     }
 
-    if (!booking || booking.bookingStatus !== 'Pending') {
-      return res.status(400).json({ success: false, message: 'Đơn đặt phòng không hợp lệ' });
+    if (!booking || booking[target.statusField] !== 'Pending') {
+      return res.status(400).json({ success: false, message: 'Đơn đặt không hợp lệ' });
     }
 
     if (booking.expiresAt && booking.expiresAt <= new Date()) {
@@ -110,46 +129,43 @@ exports.vnpayReturn = async (req, res) => {
     if (secureHash === signed) {
       const bookingId = vnp_Params['vnp_TxnRef'];
       const responseCode = vnp_Params['vnp_ResponseCode'];
+      const target = await findPayable(bookingId);
+      const type = target?.type || null;
 
       if (responseCode === '00') {
         // Cập nhật nguyên tử: chỉ xác nhận nếu đơn vẫn đang Pending (chưa bị cronjob hủy)
-        const booking = await Booking.findOneAndUpdate(
-          { _id: bookingId, bookingStatus: 'Pending' },
-          { $set: { bookingStatus: 'Confirmed' }, $unset: { expiresAt: 1 } },
+        const booking = target && await target.Model.findOneAndUpdate(
+          { _id: bookingId, [target.statusField]: 'Pending' },
+          { $set: { [target.statusField]: 'Confirmed' }, $unset: { expiresAt: 1 } },
           { returnDocument: 'after' }
         );
-        if (!booking) {
-          const existing = await Booking.findById(bookingId).select('bookingStatus');
-          if (existing?.bookingStatus === 'Canceled') {
-            return res.status(409).json({
-              success: false,
-              message: "Đơn đã hết hạn giữ chỗ trước khi thanh toán hoàn tất. Vui lòng liên hệ hỗ trợ để được hoàn tiền."
-            });
-          }
+        if (!booking && target?.doc[target.statusField] === 'Canceled') {
+          return res.status(409).json({
+            success: false, type,
+            message: "Đơn đã hết hạn giữ chỗ trước khi thanh toán hoàn tất. Vui lòng liên hệ hỗ trợ để được hoàn tiền."
+          });
         }
         if (booking) {
-          const payment = new Payment({
-            bookingId: booking._id,
+          await Payment.create({
+            [target.paymentKey]: booking._id,
             paymentMethod: 'VNPay',
             amount: booking.totalAmount,
             paymentStatus: 'Success',
             paymentDate: new Date()
           });
-          await payment.save();
         }
-        return res.status(200).json({ success: true, message: "Giao dịch thành công" });
+        return res.status(200).json({ success: true, type, message: "Giao dịch thành công" });
       } else {
         // Ghi nhận giao dịch thất bại để đối soát (đơn vẫn Pending, cronjob sẽ hủy và hoàn quỹ)
-        const booking = await Booking.findById(bookingId).select('totalAmount');
-        if (booking) {
+        if (target) {
           await Payment.create({
-            bookingId: booking._id,
+            [target.paymentKey]: target.doc._id,
             paymentMethod: 'VNPay',
-            amount: booking.totalAmount,
+            amount: target.doc.totalAmount,
             paymentStatus: 'Failed'
           });
         }
-        return res.status(400).json({ success: false, message: "Giao dịch bị hủy hoặc thất bại" });
+        return res.status(400).json({ success: false, type, message: "Giao dịch bị hủy hoặc thất bại" });
       }
     } else {
       return res.status(400).json({ success: false, message: "Chữ ký không hợp lệ" });

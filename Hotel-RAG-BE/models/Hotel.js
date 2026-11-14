@@ -1,5 +1,6 @@
 // File: models/Hotel.js
 const mongoose = require('mongoose');
+const { provinceSchemaType } = require('../constants/provinces');
 
 const hotelSchema = new mongoose.Schema({
   partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -7,8 +8,8 @@ const hotelSchema = new mongoose.Schema({
   description: { type: String, required: true },
   address: {
     street: String,
-    city: String,
-    province: String,
+    city: String, // Quận / huyện / thành phố thuộc tỉnh (vd. Đà Lạt, Hội An) - nhập tự do
+    province: provinceSchemaType({ required: true }), // 1 trong 63 tỉnh/thành (danh mục cố định)
   },
   coordinates: { // Đưa ra ngoài cho phẳng theo ERD
     // Không đặt default 'Point': nếu khách sạn không có tọa độ mà vẫn lưu { type: 'Point' }
@@ -31,5 +32,7 @@ const hotelSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 hotelSchema.index({ coordinates: "2dsphere" });
+
+hotelSchema.index({ 'address.province': 1, status: 1 });
 
 module.exports = mongoose.model('Hotel', hotelSchema);

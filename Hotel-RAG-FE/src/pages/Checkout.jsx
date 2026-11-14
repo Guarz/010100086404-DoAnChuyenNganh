@@ -215,13 +215,27 @@ export default function Checkout() {
             <p className="text-3xl font-extrabold text-[#b7812d]">
               {booking.totalAmount.toLocaleString("vi-VN")}₫
             </p>
-            <button
-              type="button"
-              onClick={() => navigate("/profile")}
-              className="rounded-2xl bg-[#173b31] px-8 py-4 font-bold text-white transition hover:bg-[#245a4b]"
-            >
-              Xem lịch sử đặt chỗ
-            </button>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {/* Bán chéo: đặt xe đưa đón cho đúng khách sạn / ngày nhận phòng của đơn này */}
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(
+                    `/transfers?hotelId=${booking.hotelId?._id || booking.hotelId}&hotelBookingId=${booking._id}&date=${new Date(new Date(booking.checkInDate).getTime() + 7 * 3600000).toISOString().slice(0, 10)}`,
+                  )
+                }
+                className="rounded-2xl border border-[#173b31] px-6 py-4 font-bold text-[#173b31] transition hover:bg-[#f2f7f5]"
+              >
+                Đặt xe đưa đón
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/profile")}
+                className="rounded-2xl bg-[#173b31] px-8 py-4 font-bold text-white transition hover:bg-[#245a4b]"
+              >
+                Xem lịch sử đặt chỗ
+              </button>
+            </div>
           </div>
         )}
       </section>

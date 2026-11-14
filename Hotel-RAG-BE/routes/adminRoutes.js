@@ -18,6 +18,7 @@ const {
 // 2. Import Middleware xác thực và phân quyền
 // (Lưu ý: Đảm bảo thư mục của bạn tên là 'middleware' hoặc 'middlewares' cho khớp nhé)
 const { authenticateUser, authorizeRoles } = require('../middleware/authMiddleware');
+const { adminListCompanies, adminUpdateCompanyStatus } = require('../controllers/transportController');
 
 // 3. KHAI BÁO ROUTES
 
@@ -31,6 +32,10 @@ router.get('/hotels', authenticateUser, authorizeRoles('Admin'), getHotels);
 router.put('/hotels/:id/status', authenticateUser, authorizeRoles('Admin'), updateHotelStatus);
 router.put('/hotels/:id/approve', authenticateUser, authorizeRoles('Admin'), approveHotel);
 router.put('/hotels/:id/reject', authenticateUser, authorizeRoles('Admin'), rejectHotel);
+
+// --- DUYỆT NHÀ XE ---
+router.get('/transport-companies', authenticateUser, authorizeRoles('Admin'), adminListCompanies);
+router.put('/transport-companies/:id/status', authenticateUser, authorizeRoles('Admin'), adminUpdateCompanyStatus);
 
 // --- RAG AI ANALYTICS ---
 // Thay verifyAdmin bằng authenticateUser, authorizeRoles('Admin')
