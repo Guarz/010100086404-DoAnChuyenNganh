@@ -389,6 +389,169 @@
 
 ---
 
+## [01/11/2026] File Word minh chứng xử lý góp ý giảng viên
+
+**Người thực hiện:** Quanh (hỗ trợ bởi Claude Code)
+
+**Thay đổi:**
+- Tạo `docs/MinhChung_GopY_GiangVien.docx` (22 trang), gồm minh chứng cho 6 góp ý (#2–#7):
+  - thuật ngữ RAG Chatbot, không phải Agent;
+  - Golden Query Set, benchmark, error analysis, groundedness, citation;
+  - pipeline ràng buộc cứng;
+  - test đặt phòng đồng thời và trạng thái DB trước/sau;
+  - request 401/403 thật, code middleware;
+  - bảng Implemented/Prototype/Mock/Planned, số liệu collections, ảnh chụp giao diện.
+- Mọi số liệu được tạo tự động từ commit `04eeccc`:
+  - `npm test` 53/53 pass;
+  - `npm run rag:benchmark`;
+  - số liệu đọc trực tiếp MongoDB Atlas;
+  - request/response API và 9 ảnh chụp giao diện từ backend + frontend chạy trên bản sao dữ liệu Atlas, không ghi vào Atlas.
+- Ghi rõ dữ liệu mock trong DB: 101/107 bookings và 101/105 payments do script seed tạo. Chưa có giao dịch VNPay thành công thật, khớp trạng thái Prototype.
+
+**Kiểm chứng:**
+- Mở bằng Microsoft Word: cập nhật mục lục, xuất từng trang ra ảnh để kiểm tra trình bày.
+- Đối chiếu từng con số trong file với nguồn (output test, `docs/rag-benchmark.json`, truy vấn Atlas).
+
+**Việc còn lại:**
+- Không có Swagger/Postman. Tài liệu dùng test tự động và request/response thật để thay thế, có ghi rõ điều này.
+- Báo cáo `.docx` chính của nhóm vẫn cần bỏ chữ "Agent" và đưa các bảng trong file minh chứng vào.
+- File minh chứng chưa được commit.
+
+**Tiến độ:** hồ sơ khoảng 70%.
+
+---
+
+## [02/11/2026] Sơ đồ ERD cuối cùng (Mermaid)
+
+**Người thực hiện:** Quanh (hỗ trợ bởi Claude Code)
+
+**Thay đổi:**
+- `docs/erd.mmd`: ERD dạng Mermaid `erDiagram` (dán được vào https://mermaid.live), lấy đúng theo 8 model Mongoose hiện tại.
+  - Các thực thể: USER, HOTEL, ROOM_TYPE, ROOM_INVENTORY, BOOKING, BOOKING_DETAIL (mảng nhúng trong Booking), PAYMENT, REVIEW, RAG_LOG.
+  - Có đủ trường, khóa PK/FK/UK, enum và 13 quan hệ.
+- `docs/erd.png`: ảnh xuất từ chính file trên để đưa vào báo cáo.
+
+**Kiểm chứng:** render bằng thư viện Mermaid 11.4.1, không có lỗi cú pháp.
+
+**Việc còn lại:** commit.
+
+**Tiến độ:** không đổi.
+
+---
+
+## [02/11/2026] Từ điển dữ liệu (giải thích các trường)
+
+**Người thực hiện:** Quanh (hỗ trợ bởi Claude Code)
+
+**Thay đổi:**
+- `docs/data-dictionary.md`: bảng giải thích từng trường của 8 collection (users, hotels, roomtypes, roominventories, bookings kèm bookingDetails nhúng, payments, reviews, raglogs).
+  - Mỗi trường có: kiểu, bắt buộc, mặc định/enum/ràng buộc, ý nghĩa nghiệp vụ.
+  - Kèm danh sách index của từng collection.
+- Thêm liên kết trong `README.md`.
+
+**Kiểm chứng:** đối chiếu với `Hotel-RAG-BE/models/*.js` và các ràng buộc validate trong controller (độ dài comment, idempotencyKey, giới hạn tiện nghi/ảnh).
+
+**Việc còn lại:** commit.
+
+**Tiến độ:** không đổi.
+
+---
+
+## [09/11/2026] Hoàn thành báo cáo đồ án theo mẫu khoa (`maudoan.docx`)
+
+**Người thực hiện:** Quanh (hỗ trợ bởi Claude Code)
+
+**Thay đổi:**
+- Điền file mẫu `D:/School/baocao/maudoan.docx` thành báo cáo hoàn chỉnh (54 trang), giữ nguyên bìa, bảng danh sách nhóm và bảng chấm thi của mẫu; bản mẫu gốc sao lưu tại `maudoan_GOC_backup.docx`.
+- Nội dung kế thừa bản nháp `baocaonhom13.docx` và cập nhật theo trạng thái cuối của hệ thống: Mở đầu; Chương 1 (1.1–1.6); Chương 2 (web/REST, React, Node/Express, MongoDB, embedding, RAG, RAG Chatbot vs AI Agent, Gemini/Ollama, JWT/RBAC/VNPay/node-cron); Chương 3 (tác nhân, 19 yêu cầu chức năng, phi chức năng, use case, ERD, 8 bảng collection, kiến trúc, pipeline RAG, đặt phòng chống oversell, phân quyền, giao diện theo tác nhân, kiểm thử 53/53, benchmark RAG); Kết luận; 16 tài liệu tham khảo IEEE; Phụ lục API và hướng dẫn cài đặt.
+- Mục lục, danh mục bảng, danh mục hình là trường tự động của Word; số trang La Mã cho phần đầu, số Ả Rập từ Mở đầu; bìa không đánh số.
+- 24 hình: 3 use case (từ bản nháp), ERD cuối (`docs/erd.png`), 4 sơ đồ Mermaid mới (kiến trúc, pipeline RAG, tuần tự đặt phòng – VNPay, trạng thái đơn) và 16 ảnh chụp giao diện thật (chụp trên bản sao dữ liệu local, chỉ đọc Atlas).
+
+**File chính:** `D:/School/baocao/maudoan.docx` (ngoài repo).
+
+**Kiểm chứng:** mở bằng Word, cập nhật toàn bộ trường, xuất PDF và soát từng trang.
+
+**Việc còn lại:** sơ đồ use case lấy từ bản nháp chưa có các use case Thanh toán VNPay, Đánh giá, Đăng ký đối tác, Duyệt đối tác, RAG Analytics (đã liệt kê trong Bảng 3.2); nhóm tự rà lại câu chữ trước khi nộp.
+
+**Tiến độ:** hoàn thành báo cáo.
+
+---
+
+## [09/11/2026] Slide thuyết trình và kịch bản thuyết trình
+
+**Người thực hiện:** Quanh (hỗ trợ bởi Claude Code)
+
+**Thay đổi:**
+- `D:/School/baocao/Nhom13_BaoCao.pptx`: 18 slide 16:9 (tông xanh rêu – vàng theo giao diện Nestly): bìa, nội dung, bài toán, mục tiêu – phạm vi, công nghệ, kiến trúc, dữ liệu, chức năng, pipeline RAG, ví dụ tách ràng buộc, đặt phòng an toàn, phân quyền, 2 slide demo, biểu đồ benchmark (biểu đồ PowerPoint gốc), kiểm thử, kết luận, hỏi đáp. Lời thoại nằm trong phần Notes của từng slide.
+- `D:/School/baocao/Nhom13_KichBanThuyetTrinh.docx`: 12 trang gồm phân công 3 thành viên (đề xuất), dòng thời gian khoảng 17:45 phút, checklist chuẩn bị demo, lời thoại chi tiết theo từng slide, 9 câu hỏi dự kiến kèm gợi ý trả lời, lưu ý khi trình bày.
+
+**File chính:** hai file trên (ngoài repo).
+
+**Kiểm chứng:** pptx qua validate.py; xuất ảnh từng slide bằng PowerPoint và soát; kịch bản cập nhật mục lục bằng Word, xuất PDF soát từng trang.
+
+**Việc còn lại:** nhóm duyệt lại phân công người trình bày và tập dượt canh giờ.
+
+**Tiến độ:** sẵn sàng bảo vệ.
+
+---
+
+## [14/11/2026] Mở rộng: Xe đưa đón (airport transfer) + vai trò Nhà xe (`Transport`)
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:**
+- Vai trò mới `Transport`: khách hàng gửi hồ sơ nhà xe (tên, SĐT, giấy phép KD vận tải, thành phố phục vụ) → Admin duyệt ở tab **Duyệt nhà xe** (duyệt → role `Transport`, gỡ duyệt/từ chối → về `Customer`). Partner/Admin không đăng ký nhà xe được và ngược lại.
+- 5 collection mới: `transportcompanies`, `vehicletypes`, `transferroutes`, `vehicleinventories`, `transferbookings`; `payments` thêm `transferBookingId` (VNPay dùng chung cho đơn phòng và đơn xe, trả về `type`).
+- Đặt xe dùng lại cơ chế đặt phòng: số xe cần = ⌈khách / số chỗ⌉, trừ xe nguyên tử theo ngày, giữ 5 phút, `Idempotency-Key` (lưu đơn trước để chiếm khóa rồi mới giữ xe — tránh request trùng gửi đồng thời bị báo "hết xe"), cronjob hủy đơn quá hạn + trả xe, tự `Completed` sau ngày đón.
+- Middleware sở hữu `transportOwnership.js`: nhà xe chỉ sửa xe / tuyến / lịch / đơn của mình.
+- Frontend: `/transfers` (tìm & đặt), `/transfer-checkout/:id`, `/transport-apply`, `/transport` (Trung tâm nhà xe: loại xe, tuyến, lịch xe trống, đơn + thống kê), tab Admin "Duyệt nhà xe", Hồ sơ → "Xe đưa đón", mục xe đưa đón ở trang chi tiết khách sạn, nút "Đặt xe đưa đón" sau khi thanh toán phòng và trong lịch sử đặt phòng; Header hiện menu theo vai trò; VNPayReturn phân biệt đơn phòng / đơn xe.
+- `seedMockData.js` thêm bước "Xe đưa đón": 3 nhà xe (`mock.transport1..3@nestly.test`, mật khẩu như các tài khoản mock), 9 loại xe, tuyến sân bay ↔ trung tâm cho các thành phố có khách sạn, lịch 60 ngày, 12 đơn mẫu có payment.
+
+**File chính:** `Hotel-RAG-BE/models/{TransportCompany,VehicleType,TransferRoute,VehicleInventory,TransferBooking}.js`, `services/transferService.js`, `middleware/transportOwnership.js`, `controllers/{transportController,transferController,paymentController}.js`, `routes/{transportRoutes,transferRoutes,adminRoutes}.js`, `jobs/bookingCron.js`, `tests/transfer.test.js`, `scripts/seedMockData.js`; `Hotel-RAG-FE/src/pages/{Transfers,TransferCheckout,TransportApplication,TransportDashboard}.jsx`, `components/transport/TransportModals.jsx`, `components/admin/TransportCompaniesPanel.jsx`, `components/{TransferHistory,HotelTransfers}.jsx`; tài liệu `docs/erd.mmd`, `docs/erd.png`, `docs/data-dictionary.md` (mục 9–13), `docs/security-rbac.md`, `docs/progress-and-scope.md`, `README.md`.
+
+**Kiểm chứng:**
+- `npm test`: 66/66 pass (13 test mới: duyệt/đổi role, 403 chéo giữa 2 nhà xe, tìm xe, 2 khách tranh 1 xe → đúng 1 đơn, idempotency đồng thời, hủy/cron trả xe, 410 khi quá hạn, VNPay tạo Payment `transferBookingId`).
+- `vite build` thành công, ESLint không có lỗi mới.
+- Chạy giao diện trên bản sao dữ liệu local (không động vào Atlas): tìm xe → đặt → trang thanh toán → VNPay giả lập → lịch sử; trung tâm nhà xe (cập nhật lịch xe, tab đơn); Admin duyệt nhà xe; mục xe ở trang khách sạn; kiểm tra màn 375px không tràn ngang.
+- Seed chạy 2 lần trên bản local: lần 2 không thay đổi gì (idempotent).
+
+**Việc còn lại:**
+- Chưa chạy `npm run seed:mock` trên Atlas (chờ nhóm đồng ý).
+- Chưa có đánh giá/review cho nhà xe; chưa có hoàn tiền tự động khi khách hủy đơn đã thanh toán.
+- Cập nhật báo cáo/slide nếu muốn trình bày phần mở rộng này.
+
+**Tiến độ:** tính năng xe đưa đón hoàn thành ở mức prototype, chưa commit.
+
+---
+
+## [14/11/2026] Tỉnh/TP dùng danh mục cố định 63 tỉnh thành (không nhập tay)
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:**
+- Danh mục cố định 63 tỉnh/thành, sắp A→Z theo tiếng Việt: `Hotel-RAG-BE/constants/provinces.js` (+ bản giống hệt `Hotel-RAG-FE/src/constants/provinces.js`). Có hàm chuẩn hóa cách viết khác / địa danh ("TP HCM" → Hồ Chí Minh, "Huế" → Thừa Thiên Huế, "Đà Lạt" → Lâm Đồng…).
+- Model: `hotels.address.province` bắt buộc và phải thuộc danh mục; `users.address.province` nếu có cũng phải thuộc danh mục; nhà xe `serviceCities` → `serviceProvinces`, tuyến xe `city` → `province` (chỉ mở tuyến trong tỉnh nhà xe đã đăng ký).
+- API: `GET /api/hotels/provinces` (63 tỉnh + số KS), `GET /api/hotels/search?province=` (lọc chính xác; `?city=` cũ vẫn chạy), `GET /api/transfers/provinces` thay `/transfers/cities`, `/transfers/search?province=`. Tỉnh ngoài danh mục → 400.
+- Giao diện: ô chọn Tỉnh/TP thay cho ô nhập tay ở tìm kiếm trang chủ, bộ lọc trang Khách sạn (đổi tỉnh là lọc ngay, hiện số KS mỗi tỉnh), form tạo / sửa khách sạn của Partner, đăng ký nhà xe (chọn nhiều tỉnh), thêm tuyến xe, tìm xe đưa đón (hiện số tuyến mỗi tỉnh). Ô "Quận/Huyện/Thành phố thuộc tỉnh" vẫn nhập tự do.
+- `seedMockData.js` thêm bước "Tỉnh/thành (63 tỉnh)": chuẩn hóa tỉnh của khách sạn / người dùng (suy ra từ city nếu thiếu), đổi dữ liệu xe cũ sang `province` / `serviceProvinces`; dữ liệu xe mẫu tạo theo tỉnh.
+
+**File chính:** `Hotel-RAG-BE/constants/provinces.js`, `models/{Hotel,User,TransportCompany,TransferRoute}.js`, `controllers/{hotelController,partnerController,userController,transportController,transferController}.js`, `routes/{hotelRoutes,transferRoutes}.js`, `scripts/seedMockData.js`, `tests/provinces.test.js`; `Hotel-RAG-FE/src/constants/provinces.js`, `components/{ProvinceSelect,ProvinceMultiSelect}.jsx`, `hooks/useProvinceCounts.js`, `pages/{Home,Hotels,PartnerDashboard,Transfers,TransportApplication}.jsx`, `components/partner/HotelEditModal.jsx`, `components/transport/TransportModals.jsx`; tài liệu `docs/data-dictionary.md` (phụ lục danh mục), `docs/erd.mmd` / `erd.png`, `docs/security-rbac.md`, `README.md`.
+
+**Kiểm chứng:**
+- `npm test`: 75/75 pass (9 test mới: đủ 63 tỉnh / không trùng / đúng thứ tự, FE–BE cùng danh sách, chuẩn hóa, model chặn tỉnh sai, lọc `?province=`, Partner tạo/sửa KS, `/users/me`, nhà xe đăng ký tỉnh và mở tuyến ngoài tỉnh đã đăng ký).
+- `vite build` thành công, ESLint không lỗi mới.
+- Chạy giao diện trên bản sao dữ liệu local: bộ lọc KS chọn "Lâm Đồng" → 2 khách sạn Đà Lạt; form sửa KS hiện ô chọn; tìm xe theo tỉnh có số tuyến; đăng ký nhà xe chọn nhiều tỉnh; màn 375px không tràn ngang.
+- Seed chạy 2 lần trên bản local: lần 2 không thay đổi gì. Dữ liệu tỉnh của 20 khách sạn hiện có đã đúng tên chuẩn.
+
+**Việc còn lại:**
+- Chạy `npm run seed:mock` trên Atlas (chờ nhóm đồng ý) để chuẩn hóa tỉnh của tài khoản mock và tạo dữ liệu xe.
+- Trợ lý RAG vẫn nhận địa danh cấp thành phố ("Đà Lạt", "Hội An"); chưa hiểu câu hỏi chỉ nêu tên tỉnh ("ở Lâm Đồng").
+- Danh mục theo 63 tỉnh trước sáp nhập 2025 theo yêu cầu; nếu cần đổi sang 34 tỉnh mới chỉ phải sửa 2 file danh mục + bảng quy đổi.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 

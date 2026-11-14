@@ -17,6 +17,12 @@ const RoomInventory = require('../models/RoomInventory');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const Review = require('../models/Review');
+const TransportCompany = require('../models/TransportCompany');
+const VehicleType = require('../models/VehicleType');
+const TransferRoute = require('../models/TransferRoute');
+const VehicleInventory = require('../models/VehicleInventory');
+const TransferBooking = require('../models/TransferBooking');
+const { normalizeProvince } = require('../constants/provinces');
 
 const DEMO_PASSWORD = 'Nestly@2026'; // Mật khẩu chung cho các tài khoản mock (*@nestly.test)
 const INVENTORY_DAYS = 60;
@@ -146,7 +152,7 @@ async function fixUsers() {
   for (const c of MOCK_CUSTOMERS) {
     const res = await User.collection.updateOne({ _id: c._id }, {
       $setOnInsert: { ...c, password, role: 'Customer', status: 'Active', partnerApplicationStatus: 'NotRequested',
-        address: { city: pick(Object.keys(CITY_COORDS)) }, createdAt: new Date(Date.now() - 60 * DAY_MS), updatedAt: new Date(), __v: 0 }
+        address: (() => { const city = pick(Object.keys(CITY_COORDS)); return { city, province: normalizeProvince(city) }; })(), createdAt: new Date(Date.now() - 60 * DAY_MS), updatedAt: new Date(), __v: 0 }
     }, { upsert: true });
     count('users: thêm customer mock', res.upsertedCount);
   }
@@ -159,6 +165,45 @@ const ROOM_TEMPLATES = [
   { suffix: 'Family Suite', factor: 2.6, maxAdults: 4, maxChildren: 2, qty: 4, amenities: ['Phòng khách riêng', '2 phòng ngủ', 'Bếp nhỏ', 'Bồn tắm'] }
 ];
 const BASE_PRICE_BY_CITY = { 'Hà Nội': 1200000, 'Hồ Chí Minh': 1300000, 'Phú Quốc': 1800000, 'Đà Nẵng': 1000000, 'Đà Lạt': 900000, 'Nha Trang': 950000, 'Hội An': 800000, 'Huế': 700000 };
+
+// ---------- Tỉnh/thành: đưa về danh mục cố định 63 tỉnh ----------
+// Khách sạn / người dùng: province sai cách viết hoặc thiếu -> suy ra từ province hoặc city ("Đà Lạt" -> "Lâm Đồng").
+// Dữ liệu xe đưa đón đời đầu dùng trường city / serviceCities -> đổi sang province / serviceProvinces.
+async function normalizeProvinces() {
+  for (const [label, collection] of [['hotels', Hotel.collection], ['users', User.collection]]) {
+    const docs = await collection.find({ $or: [{ 'address.province': { $exists: true } }, { 'address.city': { $exists: true } }] })
+      .project({ address: 1 }).toArray();
+    for (const doc of docs) {
+      const province = normalizeProvince(doc.address?.province) || normalizeProvince(doc.address?.city);
+      if (province && province !== doc.address?.province) {
+        await collection.updateOne({ _id: doc._id }, { $set: { 'address.province': province } });
+        count(`${label}: chuẩn hóa tỉnh/thành`);
+      } else if (!province && doc.address?.province) {
+        console.warn(`\n  ! ${label} ${doc._id}: không nhận ra tỉnh "${doc.address.province}" - cần sửa tay`);
+      }
+    }
+  }
+
+  const routes = await TransferRoute.collection.find({ city: { $exists: true } }).toArray();
+  for (const r of routes) {
+    await TransferRoute.collection.updateOne({ _id: r._id }, {
+      $set: { province: normalizeProvince(r.province) || normalizeProvince(r.city) }, $unset: { city: '' }
+    });
+    count('transferroutes: city -> province');
+  }
+  const companies = await TransportCompany.collection.find({ serviceCities: { $exists: true } }).toArray();
+  for (const c of companies) {
+    const list = [...new Set((c.serviceCities || []).map(normalizeProvince).filter(Boolean))];
+    await TransportCompany.collection.updateOne({ _id: c._id }, { $set: { serviceProvinces: list }, $unset: { serviceCities: '' } });
+    count('transportcompanies: serviceCities -> serviceProvinces');
+  }
+  // Index cũ theo city của tuyến xe
+  const routeIndexes = await TransferRoute.collection.indexes().catch(() => []);
+  if (routeIndexes.some((i) => i.name === 'city_1_isActive_1')) {
+    await TransferRoute.collection.dropIndex('city_1_isActive_1');
+    count('transferroutes: xóa index city cũ');
+  }
+}
 
 async function fixHotelsAndRooms() {
   const hotels = await Hotel.find().select('-embedding').sort({ _id: 1 });
@@ -398,6 +443,124 @@ async function regenerateEmbeddings() {
 }
 
 // =====================================================================
+// XE ĐƯA ĐÓN: nhà xe (role Transport), loại xe, tuyến, lịch xe, vài đơn mẫu
+// =====================================================================
+// Theo tỉnh/thành (danh mục 63 tỉnh): sân bay gần nhất + khu khách sạn trung tâm
+const AIRPORTS = {
+  'Đà Nẵng': 'Sân bay quốc tế Đà Nẵng', 'Lâm Đồng': 'Sân bay Liên Khương', 'Hà Nội': 'Sân bay quốc tế Nội Bài',
+  'Hồ Chí Minh': 'Sân bay Tân Sơn Nhất', 'Kiên Giang': 'Sân bay quốc tế Phú Quốc', 'Thừa Thiên Huế': 'Sân bay quốc tế Phú Bài',
+  'Khánh Hòa': 'Sân bay Cam Ranh', 'Quảng Nam': 'Sân bay quốc tế Đà Nẵng'
+};
+const CENTERS = {
+  'Đà Nẵng': 'Khách sạn trung tâm Đà Nẵng', 'Lâm Đồng': 'Khách sạn trung tâm Đà Lạt', 'Hà Nội': 'Khách sạn phố cổ Hà Nội',
+  'Hồ Chí Minh': 'Khách sạn trung tâm Quận 1', 'Kiên Giang': 'Khách sạn Dương Đông, Phú Quốc', 'Thừa Thiên Huế': 'Khách sạn trung tâm Huế',
+  'Khánh Hòa': 'Khách sạn trung tâm Nha Trang', 'Quảng Nam': 'Khách sạn phố cổ Hội An'
+};
+const MOCK_TRANSPORTS = [
+  { name: 'Nestly Transfer Miền Trung', provinces: ['Đà Nẵng', 'Quảng Nam', 'Thừa Thiên Huế'] },
+  { name: 'Sài Gòn Airport Car', provinces: ['Hồ Chí Minh', 'Kiên Giang', 'Khánh Hòa', 'Lâm Đồng'] },
+  { name: 'Hà Nội Limousine', provinces: ['Hà Nội'] }
+].map((t, i) => ({
+  ...t,
+  userId: oid(`6d0c0000000000000000e${pad(i + 1, 3)}`),
+  companyId: oid(`6d0ce0${pad(i + 1, 4)}00000000000000`),
+  email: `mock.transport${i + 1}@nestly.test`,
+  phone: `0236${pad(3000000 + i * 111111, 7)}`
+}));
+const VEHICLE_TEMPLATES = [
+  { name: 'Sedan 4 chỗ (Toyota Vios)', seats: 4, luggage: 3, totalVehicles: 6, price: 250000, amenities: ['Điều hòa', 'Nước uống miễn phí', 'Cổng sạc USB'] },
+  { name: 'SUV 7 chỗ (Toyota Fortuner)', seats: 7, luggage: 5, totalVehicles: 4, price: 380000, amenities: ['Điều hòa', 'Wi-Fi', 'Nước uống miễn phí', 'Ghế trẻ em'] },
+  { name: 'Ford Transit 16 chỗ', seats: 16, luggage: 12, totalVehicles: 2, price: 750000, amenities: ['Điều hòa', 'Hỗ trợ hành lý', 'Đón tận sảnh sân bay'] }
+];
+const VEHICLE_IMAGES = ['photo-1549317661-bd32c8ce0db2', 'photo-1533473359331-0135ef1b58bf', 'photo-1570125909232-eb263c188f7e'].map(unsplash);
+const PROVINCE_PRICE_FACTOR = { 'Hà Nội': 1.3, 'Hồ Chí Minh': 1.2, 'Kiên Giang': 1.1, 'Khánh Hòa': 1.4, 'Lâm Đồng': 1.3, 'Quảng Nam': 1.6 };
+
+async function seedTransfers() {
+  const password = await bcrypt.hash(DEMO_PASSWORD, 10);
+  const hotelProvinces = new Set(await Hotel.distinct('address.province'));
+
+  for (const [ti, t] of MOCK_TRANSPORTS.entries()) {
+    const u = await User.collection.updateOne({ _id: t.userId }, {
+      $setOnInsert: { fullName: `${t.name} (chủ nhà xe)`, email: t.email, password, phone: t.phone, role: 'Transport', status: 'Active',
+        partnerApplicationStatus: 'NotRequested', createdAt: new Date(Date.now() - 45 * DAY_MS), updatedAt: new Date(), __v: 0 }
+    }, { upsert: true });
+    count('users: thêm nhà xe mock', u.upsertedCount);
+
+    const c = await TransportCompany.updateOne({ _id: t.companyId }, {
+      $setOnInsert: { ownerId: t.userId, companyName: t.name, phone: t.phone, licenseNumber: `GPKDVT-${pad(ti + 1, 3)}/2026`,
+        description: `Dịch vụ đưa đón sân bay – khách sạn tại ${t.provinces.join(', ')}.`, serviceProvinces: t.provinces,
+        status: 'Approved', reviewedAt: new Date(Date.now() - 40 * DAY_MS) }
+    }, { upsert: true });
+    count('transportcompanies: thêm', c.upsertedCount);
+
+    for (const [vi, tpl] of VEHICLE_TEMPLATES.entries()) {
+      const vehicleId = oid(`6d0ce1${pad(ti + 1, 4)}${pad(vi + 1, 4)}0000000000`);
+      const v = await VehicleType.updateOne({ _id: vehicleId }, {
+        $setOnInsert: { companyId: t.companyId, name: tpl.name, seats: tpl.seats, luggage: tpl.luggage, totalVehicles: tpl.totalVehicles,
+          amenities: tpl.amenities, images: [VEHICLE_IMAGES[vi]], isActive: true }
+      }, { upsert: true });
+      count('vehicletypes: thêm', v.upsertedCount);
+
+      // Lịch xe 60 ngày tới (chỉ tạo ngày còn thiếu)
+      const ops = [];
+      for (let d = 0; d < INVENTORY_DAYS; d++) {
+        ops.push({ updateOne: { filter: { vehicleTypeId: vehicleId, date: new Date(utcToday() + d * DAY_MS) },
+          update: { $setOnInsert: { availableVehicles: tpl.totalVehicles } }, upsert: true } });
+      }
+      const inv = await VehicleInventory.bulkWrite(ops);
+      count('vehicleinventories: thêm ngày', inv.upsertedCount);
+
+      for (const [ci, province] of t.provinces.entries()) {
+        if (!hotelProvinces.has(province)) continue; // chỉ mở tuyến ở tỉnh có khách sạn
+        const price = Math.round((tpl.price * (PROVINCE_PRICE_FACTOR[province] || 1)) / 10000) * 10000;
+        const legs = [
+          { fromPlace: AIRPORTS[province], toPlace: CENTERS[province] },
+          { fromPlace: CENTERS[province], toPlace: AIRPORTS[province] }
+        ];
+        for (const [ri, leg] of legs.entries()) {
+          const routeId = oid(`6d0ce2${pad(ti + 1, 2)}${pad(vi + 1, 2)}${pad(ci + 1, 2)}${pad(ri + 1, 2)}0000000000`);
+          const res = await TransferRoute.updateOne({ _id: routeId }, {
+            $setOnInsert: { vehicleTypeId: vehicleId, companyId: t.companyId, province, ...leg, durationMin: province === 'Quảng Nam' ? 50 : 30, price, isActive: true }
+          }, { upsert: true });
+          count('transferroutes: thêm', res.upsertedCount);
+        }
+      }
+    }
+  }
+
+  // Vài đơn mẫu: 6 đơn đã đi (Completed) và 6 đơn sắp đi (Confirmed), đều có Payment VNPay thành công
+  const companyIds = MOCK_TRANSPORTS.map((t) => t.companyId);
+  const routes = await TransferRoute.find({ companyId: { $in: companyIds } }).sort({ _id: 1 }).lean();
+  const vehicles = new Map((await VehicleType.find({ companyId: { $in: companyIds } }).lean()).map((v) => [v._id.toString(), v]));
+  for (let k = 0; k < Math.min(12, routes.length); k++) {
+    const route = routes[(k * 5) % routes.length];
+    const vehicle = vehicles.get(route.vehicleTypeId.toString());
+    const offset = k < 6 ? -(k * 4 + 3) : (k - 5) * 3;
+    const serviceDate = new Date(utcToday() + offset * DAY_MS);
+    const pickupTime = new Date(serviceDate.getTime() + (9 + (k % 8) - 7) * 3600000); // 9h..16h giờ VN
+    const customer = MOCK_CUSTOMERS[k % MOCK_CUSTOMERS.length];
+    const _id = oid(`6d0ce300000000${pad(k + 1, 4)}${pad((k + 1) * 7919, 6)}`);
+    const res = await TransferBooking.collection.updateOne({ _id }, {
+      $setOnInsert: { customerId: customer._id, companyId: route.companyId, routeId: route._id, vehicleTypeId: vehicle._id,
+        pickupTime, serviceDate, passengers: Math.min(vehicle.seats, 1 + (k % 4)), vehicles: 1,
+        ...(offset >= 0 ? { flightNumber: `VN${pad(120 + k * 7, 3)}` } : {}),
+        contactPhone: customer.phone, unitPrice: route.price, totalAmount: route.price, status: offset < 0 ? 'Completed' : 'Confirmed',
+        createdAt: new Date(serviceDate.getTime() - 5 * DAY_MS), updatedAt: new Date(), __v: 0 }
+    }, { upsert: true });
+    if (!res.upsertedCount) continue;
+    count('transferbookings: thêm');
+    if (offset >= 0) {
+      await VehicleInventory.updateOne({ vehicleTypeId: vehicle._id, date: serviceDate, availableVehicles: { $gte: 1 } }, { $inc: { availableVehicles: -1 } });
+    }
+    await Payment.collection.updateOne({ transferBookingId: _id }, {
+      $setOnInsert: { transferBookingId: _id, paymentMethod: 'VNPay', amount: route.price, paymentStatus: 'Success',
+        paymentDate: new Date(serviceDate.getTime() - 5 * DAY_MS), createdAt: new Date(), updatedAt: new Date(), __v: 0 }
+    }, { upsert: true });
+    count('payments: thêm cho đơn xe');
+  }
+}
+
+// =====================================================================
 (async () => {
   await mongoose.connect(process.env.MONGO_URI);
   console.log(`Đã kết nối: ${mongoose.connection.name}`);
@@ -405,10 +568,12 @@ async function regenerateEmbeddings() {
   const steps = [
     ['Index & collection thừa', fixIndexes],
     ['Users', fixUsers],
+    ['Tỉnh/thành (63 tỉnh)', normalizeProvinces],
     ['Hotels & RoomTypes', fixHotelsAndRooms],
     ['RoomInventory', extendInventory],
     ['Bookings / Payments / Reviews', seedBookingsAndReviews],
-    ['Rating khách sạn', recalculateRatings]
+    ['Rating khách sạn', recalculateRatings],
+    ['Xe đưa đón', seedTransfers]
   ];
   if (process.argv.includes('--embeddings')) steps.push(['Vector AI', regenerateEmbeddings]);
 

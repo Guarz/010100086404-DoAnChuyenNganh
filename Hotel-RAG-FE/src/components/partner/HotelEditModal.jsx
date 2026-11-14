@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Modal from "../Modal";
 import AmenityPicker from "../AmenityPicker";
+import ProvinceSelect from "../ProvinceSelect";
 import { HOTEL_AMENITY_SUGGESTIONS } from "../../constants/amenities";
 import API from "../../services/api";
 
@@ -61,11 +62,11 @@ export default function HotelEditModal({ hotel, onClose, onSaved }) {
         </label>
         <label className="block text-sm font-bold text-stone-700">
           Tỉnh/TP
-          <input name="province" value={form.province} onChange={change} required className={inputClass} />
+          <ProvinceSelect name="province" value={form.province} onChange={change} required className={`${inputClass} bg-white`} />
         </label>
         <label className="block text-sm font-bold text-stone-700">
-          Quận/Thành phố
-          <input name="city" value={form.city} onChange={change} required className={inputClass} />
+          Quận/Huyện/Thành phố thuộc tỉnh
+          <input name="city" value={form.city} onChange={change} required placeholder="VD: Đà Lạt, Hội An, Quận 1" className={inputClass} />
         </label>
         <label className="block text-sm font-bold text-stone-700 sm:col-span-2">
           Địa chỉ cụ thể

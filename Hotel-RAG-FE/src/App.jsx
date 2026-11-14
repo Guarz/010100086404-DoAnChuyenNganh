@@ -20,6 +20,10 @@ import PartnerDashboard from "./pages/PartnerDashboard"; // <- MỚI
 import AdminDashboard from "./pages/AdminDashboard"; // <- MỚI
 import RagAnalyticsDashboard from "./pages/RagAnalyticsDashboard";
 import ProtectedRoute from "./components/ProtectedRoute"; // <- MỚI
+import Transfers from "./pages/Transfers";
+import TransferCheckout from "./pages/TransferCheckout";
+import TransportApplication from "./pages/TransportApplication";
+import TransportDashboard from "./pages/TransportDashboard";
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(() => {
@@ -71,6 +75,32 @@ export default function App() {
               }
             />
             <Route path="/payment/vnpay-return" element={<VNPayReturn />} />
+            {/* Xe đưa đón: khách tìm xe công khai, đặt/ thanh toán cần đăng nhập */}
+            <Route path="/transfers" element={<Transfers />} />
+            <Route
+              path="/transfer-checkout/:id"
+              element={
+                <ProtectedRoute>
+                  <TransferCheckout />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/transport-apply"
+              element={
+                <ProtectedRoute>
+                  <TransportApplication />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/transport"
+              element={
+                <ProtectedRoute allowedRoles={["Transport"]}>
+                  <TransportDashboard />
+                </ProtectedRoute>
+              }
+            />
             {/* Bất kỳ ai đăng nhập cũng có thể gửi đơn xin làm đối tác */}
             <Route
               path="/partner-apply"

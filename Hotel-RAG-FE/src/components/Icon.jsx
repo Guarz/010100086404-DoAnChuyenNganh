@@ -3,6 +3,7 @@ export default function Icon({ name, size = 18 }) {
   const paths = {
     arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
     bed: <><path d="M3 18v-7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7" /><path d="M3 14h18M7 9V6h5a3 3 0 0 1 3 3" /><path d="M5 18v2M19 18v2" /></>,
+    car: <><path d="M5 17h14v-5l-2-5H7l-2 5v5Z" /><path d="M5 12h14" /><circle cx="8" cy="17" r="2" /><circle cx="16" cy="17" r="2" /></>,
     calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
     check: <path d="m5 12 4 4L19 6" />,
     chevron: <path d="m8 10 4 4 4-4" />,

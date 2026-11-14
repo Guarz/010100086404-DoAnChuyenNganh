@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import StatCard from "../components/StatCard";
 import PartnerBookings from "../components/PartnerBookings";
 import AmenityPicker from "../components/AmenityPicker";
+import ProvinceSelect from "../components/ProvinceSelect";
 import HotelEditModal from "../components/partner/HotelEditModal";
 import RoomManagerModal from "../components/partner/RoomManagerModal";
 import {
@@ -331,21 +332,22 @@ export default function PartnerDashboard() {
               </label>
               <label className="block text-sm font-bold text-stone-700">
                 Tỉnh/TP{" "}
-                <input
+                <ProvinceSelect
                   name="province"
                   value={formData.province}
                   onChange={handleChange}
                   required
-                  className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
+                  className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-3"
                 />
               </label>
               <label className="block text-sm font-bold text-stone-700">
-                Quận/Huyện{" "}
+                Quận/Huyện/Thành phố thuộc tỉnh{" "}
                 <input
                   name="city"
                   value={formData.city}
                   onChange={handleChange}
                   required
+                  placeholder="VD: Đà Lạt, Hội An, Quận 1"
                   className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3"
                 />
               </label>

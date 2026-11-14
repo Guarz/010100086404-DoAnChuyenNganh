@@ -1,6 +1,7 @@
 // File: controllers/userController.js
 // Tài khoản của chính người đang đăng nhập (mọi vai trò)
 const bcrypt = require('bcryptjs');
+const { normalizeProvince } = require('../constants/provinces');
 const User = require('../models/User');
 
 const PUBLIC_FIELDS = 'fullName email phone role status partnerApplicationStatus address createdAt';
@@ -34,8 +35,14 @@ exports.updateMe = async (req, res) => {
     update.phone = phone;
   }
   if (address !== undefined && typeof address === 'object' && address !== null) {
-    for (const key of ['street', 'city', 'province']) {
+    for (const key of ['street', 'city']) {
       if (typeof address[key] === 'string') update[`address.${key}`] = address[key].trim().slice(0, 200);
+    }
+    if (address.province !== undefined) {
+      // Chỉ nhận 1 trong 63 tỉnh/thành ('' = xóa)
+      const province = address.province === '' ? '' : normalizeProvince(address.province);
+      if (province === null) return res.status(400).json({ success: false, message: 'Tỉnh/TP phải chọn trong danh sách 63 tỉnh thành' });
+      update['address.province'] = province;
     }
   }
 

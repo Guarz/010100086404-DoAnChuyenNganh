@@ -24,7 +24,19 @@ export default function Header({ loggedIn, onLogout }) {
   // Tạo dữ liệu hiển thị
   const avatarText = currentUser ? getInitials(currentUser.fullName) : "U";
   const displayName = currentUser ? currentUser.fullName : "Khách";
-  const displayRole = currentUser?.role === "Partner" ? "Đối tác Nestly" : (currentUser?.role === "Admin" ? "Quản trị viên" : "Thành viên Nestly");
+  const role = currentUser?.role;
+  const displayRole = { Partner: "Đối tác Nestly", Admin: "Quản trị viên", Transport: "Nhà xe Nestly" }[role] || "Thành viên Nestly";
+
+  // Menu theo vai trò: mỗi vai trò chỉ thấy khu vực của mình (backend vẫn kiểm tra quyền)
+  const menuItem = "flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50";
+  const roleLinks = [
+    { path: "/transfers", icon: "car", label: "Đặt xe đưa đón", show: true },
+    { path: "/partner", icon: "bed", label: "Trung tâm đối tác", show: role === "Partner" || role === "Admin" },
+    { path: "/transport", icon: "car", label: "Trung tâm nhà xe", show: role === "Transport" },
+    { path: "/admin", icon: "shield", label: "Trung tâm quản trị", show: role === "Admin" },
+    { path: "/partner-apply", icon: "home", label: "Đăng ký làm đối tác khách sạn", show: role === "Customer" },
+    { path: "/transport-apply", icon: "car", label: "Đăng ký làm nhà xe", show: role === "Customer" },
+  ].filter((l) => l.show);
 
   const handleNavigate = (path) => {
     navigate(path);
@@ -45,6 +57,10 @@ export default function Header({ loggedIn, onLogout }) {
           <span className="text-2xl font-extrabold tracking-tight text-[#173b31]">Nestly</span>
         </Link>
 
+        <div className="flex items-center gap-2 sm:gap-4">
+        <Link to="/transfers" className="hidden items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-[#173b31] hover:bg-slate-100 sm:flex">
+          <Icon name="car" /> Xe đưa đón
+        </Link>
         <div className="relative">
           <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 pr-3 shadow-sm transition hover:border-slate-300 hover:shadow-md">
             {loggedIn ? (
@@ -76,19 +92,22 @@ export default function Header({ loggedIn, onLogout }) {
                     <button onClick={() => handleNavigate("/profile")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="users" size={18} /> Thông tin cá nhân</button>
                   </div>
                   <div className="p-2">
-                    <button onClick={() => handleNavigate("/partner")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="bed" size={18} /> Trung tâm đối tác</button>
-                    <button onClick={() => handleNavigate("/admin")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-slate-50"><Icon name="shield" size={18} /> Trung tâm quản trị</button>
+                    {roleLinks.map((l) => (
+                      <button key={l.path} onClick={() => handleNavigate(l.path)} className={menuItem}><Icon name={l.icon} size={18} /> {l.label}</button>
+                    ))}
                   </div>
                   <div className="border-t border-slate-100 p-2"><button onClick={handleLogout} className="w-full rounded-xl px-3 py-3 text-left text-sm font-semibold text-red-600 hover:bg-red-50">Đăng xuất</button></div>
                 </>
               ) : (
                 <div className="p-5">
+                  <button onClick={() => handleNavigate("/transfers")} className={`${menuItem} mb-2 border border-slate-100`}><Icon name="car" size={18} /> Đặt xe đưa đón</button>
                   <button onClick={() => handleNavigate("/login")} className="mt-2 w-full rounded-xl bg-[#173b31] py-3 text-sm font-bold text-white transition hover:bg-[#245a4b]">Đăng nhập</button>
                   <button onClick={() => handleNavigate("/register")} className="mt-3 w-full rounded-xl border border-[#173b31] py-3 text-sm font-bold text-[#173b31] transition hover:bg-slate-50">Tạo tài khoản</button>
                 </div>
               )}
             </div>
           )}
+        </div>
         </div>
       </div>
     </header>

@@ -8,6 +8,7 @@ export default function VNPayReturn() {
   const navigate = useNavigate();
   const hasVerified = useRef(false);
   const bookingId = new URLSearchParams(location.search).get("vnp_TxnRef");
+  const [type, setType] = useState("hotel"); // 'hotel' | 'transfer' (backend trả về theo loại đơn)
 
   useEffect(() => {
     if (hasVerified.current) return;
@@ -15,12 +16,17 @@ export default function VNPayReturn() {
 
     API.get(`/payments/vnpay/return${location.search}`)
       .then((res) => {
+        const kind = res.data.type || "hotel";
+        setType(kind);
         if (res.data.success) {
           setStatus("success");
-          setTimeout(() => navigate("/profile"), 3000);
+          setTimeout(() => navigate(kind === "transfer" ? "/profile?tab=transfers" : "/profile"), 3000);
         } else setStatus("error");
       })
-      .catch(() => setStatus("error"));
+      .catch((err) => {
+        if (err.response?.data?.type) setType(err.response.data.type);
+        setStatus("error");
+      });
   }, [location, navigate]);
 
   return (
@@ -38,7 +44,7 @@ export default function VNPayReturn() {
           <>
             <div className="mx-auto flex size-20 items-center justify-center rounded-full bg-red-100 text-4xl text-red-600">✕</div>
             <h2 className="mt-6 text-2xl font-bold text-red-600">Giao dịch thất bại</h2>
-            <Link to={bookingId ? `/checkout/${bookingId}` : "/hotels"} className="mt-6 block rounded-xl bg-[#173b31] py-3 font-bold text-white">
+            <Link to={bookingId ? (type === "transfer" ? `/transfer-checkout/${bookingId}` : `/checkout/${bookingId}`) : "/hotels"} className="mt-6 block rounded-xl bg-[#173b31] py-3 font-bold text-white">
               {bookingId ? "Quay lại đơn hàng để thử thanh toán lại" : "Quay về Trang chủ"}
             </Link>
           </>

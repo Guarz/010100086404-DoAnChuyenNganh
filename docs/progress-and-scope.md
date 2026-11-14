@@ -46,3 +46,7 @@ Giảng viên yêu cầu ưu tiên **core Booking + RAG + Security + hồ sơ**,
 | Mobile / Agent | Không làm |
 
 Hạn 28/10/2026 trong góp ý đã qua; các hạng mục 8–11 hoàn thành ngày 31/10/2026. Nhóm nên ghi nhận độ trễ này trong báo cáo.
+
+## 4. Mở rộng phạm vi (14/11/2026): Xe đưa đón + vai trò Nhà xe
+
+Sau khi hoàn thành các ưu tiên cốt lõi, nhóm mở rộng thêm **xe đưa đón sân bay – khách sạn** với vai trò mới `Transport`. Đây là **phần mở rộng**, không thay đổi phạm vi cốt lõi đã đối chiếu ở mục 3. Thiết kế tái sử dụng nguyên cơ chế của đặt phòng (giữ chỗ 5 phút, trừ quỹ nguyên tử, Idempotency-Key, cronjob, VNPay, ownership middleware) nên không phát sinh rủi ro mới cho phần cốt lõi; có bộ test riêng `tests/transfer.test.js`.

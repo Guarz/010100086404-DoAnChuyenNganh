@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Icon from "../components/Icon";
 import API from "../services/api";
+import ProvinceSelect from "../components/ProvinceSelect";
+import useProvinceCounts from "../hooks/useProvinceCounts";
 
 const photos = {
   hero: "https://images.unsplash.com/photo-1615722440048-da4ccf6de048?auto=format&fit=crop&w=1800&q=88",
@@ -35,8 +37,9 @@ export default function Home() {
 
   // === STATE QUẢN LÝ THANH TÌM KIẾM ===
   const [showGuestMenu, setShowGuestMenu] = useState(false);
+  const provinceCounts = useProvinceCounts("/hotels/provinces", "hotelCount");
   const [searchData, setSearchData] = useState({
-    city: "",
+    province: "",
     checkIn: getFormattedDate(0), // Hôm nay
     checkOut: getFormattedDate(1), // Ngày mai
     adults: 2,
@@ -57,8 +60,10 @@ export default function Home() {
 
   // Hàm xử lý khi bấm nút "Tìm kiếm"
   const handleSearchSubmit = () => {
-    // Gom dữ liệu thành URL Query Parameters (?city=...&checkIn=...)
-    const params = new URLSearchParams(searchData).toString();
+    // Gom dữ liệu thành URL Query Parameters (?province=...&checkIn=...)
+    const query = new URLSearchParams(searchData);
+    if (!searchData.province) query.delete("province"); // chưa chọn tỉnh = tìm toàn quốc
+    const params = query.toString();
     // Chuyển hướng sang trang Danh sách Khách sạn kèm tham số lọc
     navigate(`/hotels?${params}`);
   };
@@ -129,22 +134,23 @@ export default function Home() {
         {/* THANH TÌM KIẾM ĐỘNG */}
         <div className="absolute inset-x-4 bottom-5 mx-auto max-w-[1200px] rounded-2xl bg-white p-3 shadow-2xl sm:inset-x-8 lg:flex lg:items-center">
           {/* 1. Ô ĐIỂM ĐẾN */}
-          <label className="flex flex-1 items-center gap-4 rounded-xl px-4 py-3 hover:bg-stone-50 cursor-text">
+          <label className="flex flex-1 items-center gap-4 rounded-xl px-4 py-3 hover:bg-stone-50 cursor-pointer">
             <span className="text-[#b7812d]">
               <Icon name="location" size={22} />
             </span>
             <span className="flex-1">
               <span className="block text-xs font-bold uppercase tracking-wider text-stone-400">
-                Điểm đến
+                Điểm đến (Tỉnh/TP)
               </span>
-              <input
-                type="text"
-                value={searchData.city}
+              <ProvinceSelect
+                value={searchData.province}
                 onChange={(e) =>
-                  setSearchData({ ...searchData, city: e.target.value })
+                  setSearchData({ ...searchData, province: e.target.value })
                 }
-                className="mt-1 w-full bg-transparent font-semibold text-stone-800 outline-none placeholder-stone-300"
-                placeholder="Bạn muốn đi đâu?"
+                counts={provinceCounts}
+                countUnit=" KS"
+                placeholder="Tất cả tỉnh/thành"
+                className="mt-1 w-full cursor-pointer bg-transparent font-semibold text-stone-800 outline-none"
               />
             </span>
           </label>

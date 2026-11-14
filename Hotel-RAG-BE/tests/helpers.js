@@ -14,6 +14,7 @@ const User = require('../models/User');
 const Hotel = require('../models/Hotel');
 const RoomType = require('../models/RoomType');
 const RoomInventory = require('../models/RoomInventory');
+const { normalizeProvince } = require('../constants/provinces');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -69,7 +70,7 @@ const ymd = (n) => {
 async function createHotelWithRoom(partner, { stock = 5, days = 10, basePrice = 1000000, city = 'Đà Nẵng', room = {} } = {}) {
   const hotel = await Hotel.create({
     partnerId: partner._id, hotelName: `KS ${partner.fullName}`, description: 'Khách sạn test',
-    address: { street: '1 Test', city, province: city }, amenities: ['Wifi'], status: 'Approved'
+    address: { street: '1 Test', city, province: normalizeProvince(city) || city }, amenities: ['Wifi'], status: 'Approved'
   });
   const roomType = await RoomType.create({
     hotelId: hotel._id, title: 'Deluxe', basePrice, maxAdults: 2, maxChildren: 1, totalQuantity: Math.max(stock, 1),

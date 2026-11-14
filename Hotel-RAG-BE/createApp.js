@@ -13,6 +13,8 @@ const aiRoutes = require('./routes/aiRoutes');
 const authRoutes = require('./routes/authRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const userRoutes = require('./routes/userRoutes');
+const transportRoutes = require('./routes/transportRoutes');
+const transferRoutes = require('./routes/transferRoutes');
 
 module.exports = function createApp() {
   const app = express();
@@ -33,6 +35,8 @@ module.exports = function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/reviews', reviewRoutes);
   app.use('/api/users', userRoutes);
+  app.use('/api/transport', transportRoutes); // Nhà xe
+  app.use('/api/transfers', transferRoutes); // Khách đặt xe đưa đón
 
   return app;
 };

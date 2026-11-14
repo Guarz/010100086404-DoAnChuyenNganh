@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Icon from "../components/Icon";
 import HotelReviews from "../components/HotelReviews";
+import HotelTransfers from "../components/HotelTransfers";
 import PhotoGallery from "../components/PhotoGallery";
 import API from "../services/api";
 
@@ -460,6 +461,8 @@ export default function HotelDetail() {
             )}
           </div>
         </div>
+
+        <HotelTransfers hotelId={id} date={checkInDate} />
 
         <HotelReviews hotelId={id} />
       </div>

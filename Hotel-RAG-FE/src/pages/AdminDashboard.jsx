@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import Icon from "../components/Icon"; // Hoặc "../components/Icon"
 import StatCard from "../components/StatCard";
 import API from "../services/api";
+import TransportCompaniesPanel from "../components/admin/TransportCompaniesPanel";
 
 const HOTEL_FILTERS = [
   { value: "Pending", label: "Chờ duyệt" },
@@ -341,7 +342,19 @@ export default function AdminDashboard() {
           >
             Quản lý người dùng
           </button>
+          <button
+            onClick={() => setTab("transport")}
+            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold transition sm:px-5 ${
+              tab === "transport"
+                ? "bg-white text-[#173b31] shadow-sm"
+                : "text-stone-500"
+            }`}
+          >
+            Duyệt nhà xe
+          </button>
         </div>
+
+        {tab === "transport" && <TransportCompaniesPanel />}
 
         {tab === "users" && (
           <section className="mt-5 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
@@ -384,6 +397,7 @@ export default function AdminDashboard() {
                   <option value="all">Tất cả vai trò</option>
                   <option value="Customer">Khách hàng</option>
                   <option value="Partner">Đối tác</option>
+                  <option value="Transport">Nhà xe</option>
                   <option value="Admin">Quản trị viên</option>
                 </select>
                 <select
@@ -461,6 +475,7 @@ export default function AdminDashboard() {
                             {{
                               Customer: "Khách hàng",
                               Partner: "Đối tác",
+                              Transport: "Nhà xe",
                               Admin: "Quản trị viên",
                             }[user.role] || user.role}
                           </td>

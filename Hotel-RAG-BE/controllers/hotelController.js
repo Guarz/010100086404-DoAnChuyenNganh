@@ -4,6 +4,7 @@ const RoomInventory = require("../models/RoomInventory");
 const RoomType = require("../models/RoomType");
 const mongoose = require("mongoose");
 const { CATALOG, amenityHaystack, hasAllAmenities, catalogEntry } = require("../services/amenityCatalog");
+const { VN_PROVINCES, normalizeProvince } = require("../constants/provinces");
 
 exports.getAllHotels = async (req, res) => {
   try {
@@ -93,16 +94,25 @@ const parseAmenityParam = (value) =>
     .map((label) => label.trim())
     .filter((label) => catalogEntry(label));
 
-// [GET] /api/hotels/search?city=&checkIn=&checkOut=&adults=&children=&rooms=&amenities=
+// [GET] /api/hotels/search?province=&city=&checkIn=&checkOut=&adults=&children=&rooms=&amenities=
 exports.searchHotels = async (req, res) => {
   try {
     const { city, checkIn, checkOut, adults, children, rooms } = req.query;
     const amenities = parseAmenityParam(req.query.amenities);
 
     const hotelFilter = { status: "Approved" };
-    if (city && String(city).trim()) {
+    // Lọc chính: Tỉnh/TP chọn từ danh mục 63 tỉnh (so khớp tuyệt đối)
+    const province = normalizeProvince(req.query.province);
+    if (req.query.province && !province) {
+      return res.status(400).json({ success: false, message: "Tỉnh/TP không thuộc danh mục 63 tỉnh thành" });
+    }
+    if (province) hotelFilter["address.province"] = province;
+    // ?city= giữ để tương thích link cũ: tên tỉnh (hoặc địa danh như "Đà Lạt") -> lọc theo tỉnh, còn lại tìm theo chữ
+    if (!province && city && String(city).trim()) {
+      const asProvince = normalizeProvince(String(city));
+      if (asProvince) hotelFilter["address.province"] = asProvince;
       // Escape ký tự đặc biệt: khách gõ "(" không làm hỏng truy vấn
-      hotelFilter["address.city"] = new RegExp(escapeRegex(String(city).trim()), "i");
+      else hotelFilter["address.city"] = new RegExp(escapeRegex(String(city).trim()), "i");
     }
 
     let hotels = await Hotel.aggregate([
@@ -198,6 +208,22 @@ exports.searchHotels = async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "Lỗi server khi tìm kiếm" });
+  }
+};
+
+// [GET] /api/hotels/provinces - 63 tỉnh/thành (A→Z) kèm số khách sạn đang hoạt động, dùng cho bộ lọc
+exports.getProvinceFacets = async (req, res) => {
+  try {
+    const counts = await Hotel.aggregate([
+      { $match: { status: "Approved" } },
+      { $group: { _id: "$address.province", count: { $sum: 1 } } },
+    ]);
+    const byProvince = new Map(counts.map((c) => [c._id, c.count]));
+    const data = VN_PROVINCES.map((name) => ({ name, hotelCount: byProvince.get(name) || 0 }));
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error("Lỗi lấy danh sách tỉnh:", error);
+    res.status(500).json({ success: false, message: "Không thể tải danh sách tỉnh/thành" });
   }
 };
 
