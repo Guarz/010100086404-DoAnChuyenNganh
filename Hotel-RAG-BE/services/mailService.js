@@ -43,7 +43,21 @@ async function sendWithBrevo({ to, toName, subject, html, text }) {
       textContent: text
     })
   });
-  if (!res.ok) throw new Error(`Brevo ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) {
+    const body = (await res.text()).slice(0, 200);
+    // Gợi ý cách sửa cho các lỗi cấu hình hay gặp (hiện trong log backend)
+    let hint = '';
+    if (/transactional\.email|permission_denied/.test(body)) {
+      hint = ' -> API key thiếu quyền "Transactional emails": tạo key mới trên Brevo (SMTP & API -> API Keys) và bật quyền gửi email giao dịch / Full access';
+    } else if (/unrecognised IP|unrecognized IP/i.test(body)) {
+      hint = ' -> Brevo đang chặn IP lạ: Security -> Authorised IPs -> tắt chặn';
+    } else if (res.status === 401) {
+      hint = ' -> BREVO_API_KEY sai (dùng API key "xkeysib-...", không phải SMTP key)';
+    } else if (/sender/i.test(body)) {
+      hint = ' -> MAIL_FROM chưa được xác minh trong Brevo (Senders)';
+    }
+    throw new Error(`Brevo ${res.status}: ${body}${hint}`);
+  }
 }
 
 async function sendMail(mail) {
@@ -61,7 +75,8 @@ exports.sendVerificationEmail = (user, token) => {
   return sendMail({
     to: user.email,
     toName: user.username,
-    subject: 'Xác nhận email đăng ký tài khoản Nestly',
+    // Một email có thể có nhiều tài khoản -> tiêu đề ghi tên đăng nhập
+    subject: `Xác nhận email đăng ký tài khoản Nestly${user.username ? ` (${user.username})` : ''}`,
     text: `Chào ${user.username}, bấm link sau để xác nhận email và kích hoạt tài khoản Nestly (hiệu lực 24 giờ): ${link}`,
     html: layout({
       heading: 'Xác nhận email của bạn',
@@ -78,7 +93,7 @@ exports.sendPasswordResetEmail = (user, token) => {
   return sendMail({
     to: user.email,
     toName: user.username || user.fullName,
-    subject: 'Đặt lại mật khẩu tài khoản Nestly',
+    subject: `Đặt lại mật khẩu tài khoản Nestly${user.username ? ` (${user.username})` : ''}`,
     text: `Bấm link sau để đặt mật khẩu mới cho tài khoản Nestly (hiệu lực 30 phút): ${link}`,
     html: layout({
       heading: 'Đặt lại mật khẩu',

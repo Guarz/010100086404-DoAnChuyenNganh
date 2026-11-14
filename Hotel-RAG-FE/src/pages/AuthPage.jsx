@@ -25,6 +25,7 @@ export default function AuthPage({ mode = "login", onSuccess }) {
   const [formData, setFormData] = useState(EMPTY_FORM);
   // Đăng ký xong cần xác nhận email -> hiện hướng dẫn thay cho form
   const [pendingEmail, setPendingEmail] = useState("");
+  const [mailFailed, setMailFailed] = useState(false); // backend tạo được tài khoản nhưng gửi mail lỗi
   // Đăng nhập bị chặn vì chưa xác nhận email -> hiện ô gửi lại email xác nhận
   const [needsVerification, setNeedsVerification] = useState(false);
 
@@ -60,6 +61,7 @@ export default function AuthPage({ mode = "login", onSuccess }) {
         const res = await API.post("/auth/register", formData);
         if (res.data.requiresVerification) {
           setPendingEmail(res.data.email || formData.email);
+          setMailFailed(res.data.mailSent === false);
           setSuccessMsg(res.data.message);
         } else if (res.data.success) {
           setSuccessMsg(`${res.data.message} Đang chuyển đến Đăng nhập...`);
@@ -128,11 +130,18 @@ export default function AuthPage({ mode = "login", onSuccess }) {
 
           {pendingEmail ? (
             <div className="mt-8">
-              <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm leading-6 text-emerald-800">
-                <p className="font-bold">Kiểm tra hộp thư của bạn</p>
-                <p className="mt-1">{successMsg}</p>
-                <p className="mt-2 text-emerald-700/80">Không thấy email? Xem mục Spam / Quảng cáo, hoặc gửi lại bên dưới.</p>
-              </div>
+              {mailFailed ? (
+                <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-800">
+                  <p className="font-bold">Đã tạo tài khoản nhưng chưa gửi được email xác nhận</p>
+                  <p className="mt-1">{successMsg}</p>
+                </div>
+              ) : (
+                <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm leading-6 text-emerald-800">
+                  <p className="font-bold">Kiểm tra hộp thư của bạn</p>
+                  <p className="mt-1">{successMsg}</p>
+                  <p className="mt-2 text-emerald-700/80">Không thấy email? Xem mục Spam / Quảng cáo, hoặc gửi lại bên dưới.</p>
+                </div>
+              )}
               <ResendVerification defaultEmail={pendingEmail} />
               <Link to="/login" className="mt-6 block rounded-xl bg-[#173b31] py-3.5 text-center font-bold text-white hover:bg-[#245a4b]">
                 Đã xác nhận, tới trang Đăng nhập

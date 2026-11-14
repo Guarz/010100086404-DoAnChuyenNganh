@@ -10,7 +10,8 @@ const userSchema = new mongoose.Schema({
     type: String, unique: true, sparse: true, lowercase: true, trim: true,
     match: [/^[a-z0-9._]{3,30}$/, 'Tên đăng nhập 3–30 ký tự, chỉ gồm chữ thường không dấu, số, dấu chấm, gạch dưới']
   },
-  email: { type: String, required: true, unique: true },
+  // Một email được dùng cho nhiều tài khoản (mỗi tài khoản phân biệt bằng tên đăng nhập)
+  email: { type: String, required: true, index: true },
   password: { type: String, required: true },
   // Xác nhận email: false = đã đăng ký nhưng chưa bấm link xác nhận (chưa được đăng nhập).
   // Tài khoản cũ không có trường này được coi là đã xác nhận.

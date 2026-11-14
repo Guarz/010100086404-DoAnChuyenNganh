@@ -50,8 +50,26 @@ const ROOM_IMAGES = [
   'photo-1631049307264-da0ec9d70304', 'photo-1590490360182-c33d57733427', 'photo-1611892440504-42a792e24d32',
   'photo-1618773928121-c32242e63f39', 'photo-1595576508898-0ad5c879a061', 'photo-1566665797739-1674de7a421a',
   'photo-1596394516093-501ba68a0ba6', 'photo-1505693416388-ac5ce068fe85', 'photo-1540518614846-7eded433c457',
-  'photo-1564013799919-ab600027ffc6'
+  // Bổ sung 14/11/2026 (đã kiểm tra tải được và đúng là phòng ngủ / phòng tắm)
+  'photo-1582719478250-c89cae4dc85b', 'photo-1616594039964-ae9021a400a0', 'photo-1615874959474-d609969a20ed',
+  'photo-1591088398332-8a7791972843', 'photo-1598928636135-d146006ff4be',
+  'photo-1560185893-a55cbc8c57e8', 'photo-1629140727571-9b5c6f6267b4',
+  'photo-1522771739844-6a9f6d5f14af', 'photo-1586105251261-72a756497a11',
+  'photo-1595526114035-0d45ed16cfbf', 'photo-1617104678098-de229db51175', 'photo-1631049552057-403cdb8f0658',
+  'photo-1571508601891-ca5e7a713859', 'photo-1590490359683-658d3d23f972', 'photo-1587985064135-0366536eab42',
+  'photo-1560067174-c5a3a8f37060', 'photo-1590073242678-70ee3fc28e8e', 'photo-1578898886225-c7c894047899',
+  'photo-1609766857041-ed402ea8069a', 'photo-1611892441796-ae6af0ec2cc8', 'photo-1621891334481-5c14b369d9d7',
+  'photo-1584622650111-993a426fbf0a', 'photo-1552321554-5fefe8c9ef14' // phòng tắm
 ].map(unsplash);
+const ROOM_IMAGE_COUNT = 4; // mỗi hạng phòng tối thiểu 4 ảnh
+// Ảnh từng nằm trong kho ảnh phòng nhưng không phải ảnh phòng (căn nhà có hồ bơi) -> gỡ khỏi hạng phòng
+const NOT_ROOM_IMAGE_IDS = ['photo-1564013799919-ab600027ffc6'];
+// Bỏ nhãn dữ liệu thử ("[TEST] ...", "... (Test)") khỏi tên hiển thị
+const cleanTestLabel = (text) => String(text)
+  .replace(/\[\s*test\s*\]\s*/gi, '')
+  .replace(/\s*\(\s*test\s*\)/gi, '')
+  .replace(/ {2,}/g, ' ')
+  .trim();
 
 const CITY_COORDS = {
   'Đà Nẵng': [108.2208, 16.0544], 'Đà Lạt': [108.4583, 11.9404], 'Hà Nội': [105.8342, 21.0278],
@@ -70,12 +88,18 @@ const isImageAlive = async (url) => {
   }
   return urlCache.get(url);
 };
+// So sánh ảnh theo mã ảnh Unsplash (cùng ảnh có thể lưu với tham số khác: ?w=800 / ?w=1200)
+const photoId = (url) => String(url).match(/photo-[\w-]+/)?.[0] || String(url);
+
 const repairImages = async (images, pool, offset, minCount) => {
   const alive = [];
-  for (const url of images || []) if (await isImageAlive(url)) alive.push(url);
+  for (const url of images || []) {
+    if (alive.some((u) => photoId(u) === photoId(url))) continue; // bỏ ảnh trùng trong cùng bộ
+    if (await isImageAlive(url)) alive.push(url);
+  }
   for (let i = 0; alive.length < minCount && i < pool.length; i++) {
     const candidate = pool[(offset + i) % pool.length];
-    if (!alive.includes(candidate)) alive.push(candidate);
+    if (!alive.some((u) => photoId(u) === photoId(candidate))) alive.push(candidate);
   }
   return alive;
 };
@@ -86,8 +110,15 @@ const count = (key, n = 1) => { stats[key] = (stats[key] || 0) + n; };
 // =====================================================================
 async function fixIndexes() {
   // Model khai báo unique nhưng trên Atlas index đang là index thường -> tạo lại
+  // Một email được dùng cho nhiều tài khoản -> index email phải là index thường (không unique)
+  const emailIndex = (await User.collection.indexes()).find((i) => i.name === 'email_1');
+  if (!emailIndex || emailIndex.unique) {
+    if (emailIndex) await User.collection.dropIndex('email_1');
+    await User.collection.createIndex({ email: 1 }, { name: 'email_1' });
+    count('index: users.email_1 bỏ unique (1 email nhiều tài khoản)');
+  }
+
   const targets = [
-    [User, 'email_1', { email: 1 }],
     [Review, 'bookingId_1', { bookingId: 1 }],
     [RoomInventory, 'roomTypeId_1_date_1', { roomTypeId: 1, date: 1 }]
   ];
@@ -224,11 +255,37 @@ async function normalizeProvinces() {
 
 async function fixHotelsAndRooms() {
   const hotels = await Hotel.find().select('-embedding').sort({ _id: 1 });
+  const usedCovers = new Set(); // mỗi khách sạn một ảnh bìa riêng
+  const renamedHotelIds = [];
 
   for (const [index, hotel] of hotels.entries()) {
     const update = {};
-    const images = await repairImages(hotel.images, HOTEL_IMAGES, index * 3, 5);
+    let images = await repairImages(hotel.images, HOTEL_IMAGES, index * 3, 5);
+
+    // Ảnh bìa (ảnh đầu) trùng với khách sạn trước -> đưa ảnh khác lên đầu:
+    // ưu tiên ảnh sẵn có trong bộ ảnh của chính khách sạn, không có thì lấy ảnh chưa ai dùng làm bìa
+    if (usedCovers.has(photoId(images[0]))) {
+      const own = images.find((u) => !usedCovers.has(photoId(u)));
+      const fresh = own || HOTEL_IMAGES.find((u) => !usedCovers.has(photoId(u)) && !images.some((x) => photoId(x) === photoId(u)));
+      if (fresh) {
+        images = [fresh, ...images.filter((u) => u !== fresh)].slice(0, Math.max(5, images.length));
+        count('hotels: đổi ảnh bìa bị trùng');
+      }
+    }
+    usedCovers.add(photoId(images[0]));
     if (JSON.stringify(images) !== JSON.stringify(hotel.images)) { update.images = images; count('hotels: sửa/bổ sung ảnh'); }
+
+    const cleanName = cleanTestLabel(hotel.hotelName);
+    if (cleanName !== hotel.hotelName) {
+      update.hotelName = cleanName;
+      hotel.hotelName = cleanName;
+      renamedHotelIds.push(hotel._id);
+      count('hotels: bỏ chữ test khỏi tên');
+    }
+    if (hotel.description && cleanTestLabel(hotel.description) !== hotel.description) {
+      update.description = cleanTestLabel(hotel.description);
+      count('hotels: bỏ chữ test khỏi mô tả');
+    }
 
     const coords = CITY_COORDS[hotel.address?.city];
     if (!hotel.coordinates?.coordinates?.length && coords) {
@@ -242,13 +299,14 @@ async function fixHotelsAndRooms() {
     if (hotel.status === 'Approved' && existingRooms === 0) {
       const basePrice = BASE_PRICE_BY_CITY[hotel.address?.city] || 1000000;
       for (const [t, tpl] of ROOM_TEMPLATES.slice(0, 2 + (index % 2)).entries()) {
-        const title = `${tpl.suffix} - ${hotel.hotelName.replace('[TEST] ', '')}`;
+        const title = `${tpl.suffix} - ${hotel.hotelName}`;
         await RoomType.updateOne({ hotelId: hotel._id, title }, {
           $setOnInsert: {
             description: `Hạng phòng ${tpl.suffix} tại ${hotel.hotelName}, rộng rãi, sạch sẽ, phù hợp cho ${tpl.maxAdults} người lớn.`,
             basePrice: Math.round((basePrice * tpl.factor) / 50000) * 50000,
             maxAdults: tpl.maxAdults, maxChildren: tpl.maxChildren, totalQuantity: tpl.qty,
-            amenities: tpl.amenities, images: [ROOM_IMAGES[(index + t) % ROOM_IMAGES.length], ROOM_IMAGES[(index + t + 4) % ROOM_IMAGES.length]],
+            amenities: tpl.amenities,
+            images: Array.from({ length: ROOM_IMAGE_COUNT }, (_, k) => ROOM_IMAGES[(index * 5 + t * 2 + k * 7) % ROOM_IMAGES.length]),
             isActive: true
           }
         }, { upsert: true });
@@ -261,15 +319,37 @@ async function fixHotelsAndRooms() {
   const rooms = await RoomType.find().sort({ _id: 1 });
   for (const [index, room] of rooms.entries()) {
     const update = {};
-    const images = await repairImages(room.images, ROOM_IMAGES, index * 2, 2);
+    const current = (room.images || []).filter((u) => !NOT_ROOM_IMAGE_IDS.some((id) => u.includes(id)));
+    const images = await repairImages(current, ROOM_IMAGES, index * 3, ROOM_IMAGE_COUNT);
     if (JSON.stringify(images) !== JSON.stringify(room.images)) { update.images = images; count('roomtypes: sửa/bổ sung ảnh'); }
+    for (const field of ['title', 'description']) {
+      if (room[field] && cleanTestLabel(room[field]) !== room[field]) {
+        update[field] = cleanTestLabel(room[field]);
+        count(`roomtypes: bỏ chữ test khỏi ${field === 'title' ? 'tên' : 'mô tả'}`);
+      }
+    }
     const raw = await RoomType.collection.findOne({ _id: room._id });
     if (raw.isActive === undefined) update.isActive = true;
     if (raw.maxChildren === undefined) update.maxChildren = 0;
     if (!raw.amenities || raw.amenities.length === 0) update.amenities = ['Wifi miễn phí', 'Điều hòa', 'Smart TV'];
     if (!raw.description) update.description = `${room.title}: phòng tiêu chuẩn cho ${room.maxAdults} người lớn, đầy đủ tiện nghi.`;
-    if (Object.keys(update).length > (update.images ? 1 : 0)) count('roomtypes: điền trường thiếu');
+    if (['isActive', 'maxChildren', 'amenities'].some((k) => k in update) || (update.description && !raw.description)) count('roomtypes: điền trường thiếu');
     if (Object.keys(update).length) await RoomType.collection.updateOne({ _id: room._id }, { $set: update });
+  }
+
+  // Tên khách sạn nằm trong nội dung tạo Vector AI -> tạo lại vector cho khách sạn vừa đổi tên
+  // (cần GEMINI_API_KEY; lỗi thì giữ vector cũ, tìm kiếm vẫn chạy bình thường)
+  if (renamedHotelIds.length && process.env.GEMINI_API_KEY) {
+    const { generateHotelEmbedding } = require('../services/aiService');
+    for (const id of renamedHotelIds) {
+      const hotel = await Hotel.findById(id).select('-embedding').lean();
+      if (hotel.status !== 'Approved') continue;
+      const embedding = await generateHotelEmbedding(hotel);
+      if (embedding.length === 3072) {
+        await Hotel.collection.updateOne({ _id: id }, { $set: { embedding } });
+        count('hotels: tạo lại Vector AI sau khi đổi tên');
+      }
+    }
   }
 }
 

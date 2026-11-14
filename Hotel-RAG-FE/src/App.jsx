@@ -56,13 +56,15 @@ export default function App() {
             <Route
               path="/login"
               element={
-                <AuthPage mode="login" onSuccess={() => setLoggedIn(true)} />
+                // key riêng: chuyển /register <-> /login thì tạo mới AuthPage (không giữ trạng thái
+                // "Kiểm tra hộp thư" của trang đăng ký khi đã sang trang đăng nhập)
+                <AuthPage key="login" mode="login" onSuccess={() => setLoggedIn(true)} />
               }
             />
             <Route
               path="/register"
               element={
-                <AuthPage mode="register" onSuccess={() => setLoggedIn(true)} />
+                <AuthPage key="register" mode="register" onSuccess={() => setLoggedIn(true)} />
               }
             />
             <Route
