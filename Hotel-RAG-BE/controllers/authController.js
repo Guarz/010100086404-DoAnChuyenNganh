@@ -14,6 +14,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // link xác nhận email: 24 giờ
 const RESET_TTL_MS = 30 * 60 * 1000; // link đặt lại mật khẩu: 30 phút
 const MAIL_COOLDOWN_MS = 60 * 1000; // tối thiểu 60 giây giữa 2 email cho cùng tài khoản
+const MAX_ACCOUNTS_PER_EMAIL = 10; // số tài khoản tối đa xử lý cho 1 email (đăng nhập bằng email, gửi mail hàng loạt)
 
 // Có bắt buộc xác nhận email trước khi đăng nhập không:
 // EMAIL_VERIFICATION=required|off; không đặt -> bắt buộc khi đã cấu hình gửi mail thật (Brevo).
@@ -61,9 +62,10 @@ exports.register = async (req, res) => {
   }
 
   try {
-    const [byUsername, byEmail] = await Promise.all([User.exists({ username }), User.exists({ email })]);
-    if (byUsername) return res.status(409).json({ success: false, field: 'username', message: 'Tên đăng nhập đã có người dùng' });
-    if (byEmail) return res.status(409).json({ success: false, field: 'email', message: 'Email đã được dùng cho tài khoản khác' });
+    // Chỉ tên đăng nhập phải duy nhất; một email được dùng cho nhiều tài khoản
+    if (await User.exists({ username })) {
+      return res.status(409).json({ success: false, field: 'username', message: 'Tên đăng nhập đã có người dùng' });
+    }
 
     const mustVerify = verificationRequired();
     const user = new User({
@@ -94,7 +96,7 @@ exports.register = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(409).json({ success: false, message: 'Tên đăng nhập hoặc email đã có người dùng' });
+      return res.status(409).json({ success: false, field: 'username', message: 'Tên đăng nhập đã có người dùng' });
     }
     console.error('Lỗi đăng ký:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
@@ -110,8 +112,15 @@ exports.login = async (req, res) => {
     if (!identifier || typeof password !== 'string') {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập tên đăng nhập và mật khẩu' });
     }
-    const user = await User.findOne(identifier.includes('@') ? { email: identifier } : { username: identifier });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    // Gõ email (tài khoản cũ): một email có thể thuộc nhiều tài khoản -> lấy tài khoản khớp mật khẩu
+    const candidates = identifier.includes('@')
+      ? await User.find({ email: identifier }).sort({ createdAt: 1 }).limit(MAX_ACCOUNTS_PER_EMAIL)
+      : await User.find({ username: identifier }).limit(1);
+    let user = null;
+    for (const candidate of candidates) {
+      if (await bcrypt.compare(password, candidate.password)) { user = candidate; break; }
+    }
+    if (!user) {
       return res.status(400).json({ success: false, message: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
     if (user.status === 'Locked') {
@@ -167,8 +176,11 @@ exports.resendVerification = async (req, res) => {
   const email = normalizeEmail(req.body.email);
   if (!EMAIL_RE.test(email)) return res.status(400).json({ success: false, message: 'Email không hợp lệ' });
   try {
-    const user = await User.findOne({ email }).select('+lastVerifyMailAt');
-    if (user && user.emailVerified === false && !onCooldown(user.lastVerifyMailAt)) {
+    // Mọi tài khoản chưa xác nhận dùng email này đều nhận lại link (mỗi email ghi rõ tên đăng nhập)
+    const users = await User.find({ email, emailVerified: false })
+      .select('+lastVerifyMailAt').sort({ createdAt: 1 }).limit(MAX_ACCOUNTS_PER_EMAIL);
+    for (const user of users) {
+      if (onCooldown(user.lastVerifyMailAt)) continue;
       await issueVerification(user).catch((e) => console.error('Không gửi lại được email xác nhận:', e.message));
     }
     return res.status(200).json({ success: true, message: GENERIC_SENT });
@@ -183,8 +195,12 @@ exports.forgotPassword = async (req, res) => {
   const email = normalizeEmail(req.body.email);
   if (!EMAIL_RE.test(email)) return res.status(400).json({ success: false, message: 'Email không hợp lệ' });
   try {
-    const user = await User.findOne({ email }).select('+lastResetMailAt');
-    if (user && user.status !== 'Locked' && !onCooldown(user.lastResetMailAt)) {
+    // Một email có thể có nhiều tài khoản: mỗi tài khoản nhận 1 email riêng, trong email ghi tên đăng nhập
+    // để người dùng biết đang đặt lại mật khẩu cho tài khoản nào
+    const users = await User.find({ email, status: { $ne: 'Locked' } })
+      .select('+lastResetMailAt').sort({ createdAt: 1 }).limit(MAX_ACCOUNTS_PER_EMAIL);
+    for (const user of users) {
+      if (onCooldown(user.lastResetMailAt)) continue;
       const { token, hash } = newToken();
       user.resetPasswordTokenHash = hash;
       user.resetPasswordExpires = new Date(Date.now() + RESET_TTL_MS);

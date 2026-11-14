@@ -15,7 +15,7 @@ Quy ước:
 |---|---|---|---|---|
 | `fullName` | String | ✔ | | Họ tên hiển thị (tài khoản mới: mặc định bằng tên đăng nhập, sửa trong trang Tài khoản) |
 | `username` | String | | **unique** (sparse), chữ thường, `^[a-z0-9._]{3,30}$` | Tên đăng nhập. Tài khoản cũ được seed tạo từ phần trước `@` của email |
-| `email` | String | ✔ | **unique** | Email nhận thư xác nhận / đặt lại mật khẩu, không trùng giữa các tài khoản |
+| `email` | String | ✔ | index thường (không unique) | Email nhận thư xác nhận / đặt lại mật khẩu. **Một email được dùng cho nhiều tài khoản**; mỗi tài khoản phân biệt bằng `username` |
 | `password` | String | ✔ | | Mật khẩu đã băm bằng bcrypt (không bao giờ lưu mật khẩu gốc, không trả về qua API) |
 | `phone` | String | | | Số điện thoại liên hệ (dùng cho Partner liên lạc khách) |
 | `role` | String | | `Customer` · enum: `Customer`, `Partner`, `Transport`, `Admin` | Vai trò, quyết định quyền truy cập API (RBAC) |
@@ -29,7 +29,7 @@ Quy ước:
 | `address.province` | String | | 1 trong 63 tỉnh/thành ([danh mục](#danh-muc-63-tinh)) | Tỉnh/TP của người dùng; giá trị khác bị từ chối (400) |
 | `createdAt`, `updatedAt` | Date | | tự động | |
 
-**Index:** `email` (unique), `username` (unique, sparse).
+**Index:** `username` (unique, sparse), `email` (thường).
 
 ---
 

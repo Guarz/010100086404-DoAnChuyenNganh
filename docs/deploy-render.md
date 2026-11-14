@@ -100,7 +100,9 @@ Render bản miễn phí **chặn các cổng SMTP 25, 465, 587**, nên không g
 
 1. Đăng ký tài khoản tại brevo.com.
 2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**: nhập Gmail của nhóm (vd. `nestly.doan@gmail.com`), mở email Brevo gửi tới Gmail đó và bấm xác nhận.
-3. **SMTP & API → API Keys → Generate a new API key** → chép key (chỉ hiện 1 lần).
+3. **SMTP & API → API Keys → Generate a new API key** → nếu Brevo hỏi quyền (permissions) của key, chọn **Full access** hoặc ít nhất bật **Transactional emails** (gửi email). Chép key (chỉ hiện 1 lần, dạng `xkeysib-...`).
+   Key thiếu quyền này thì log báo `Brevo 403 ... not authorized for resource "transactional.email"` và không email nào được gửi.
+   Đồng thời vào **Security → Authorised IPs** tắt chặn IP lạ (IP của Render thay đổi liên tục).
 4. Trên Render (`nestly-api` → *Environment*): `MAIL_PROVIDER=brevo`, `BREVO_API_KEY=<key>`, `MAIL_FROM=<Gmail đã xác minh>`, `APP_URL=https://<frontend>.onrender.com` → **Save and deploy**.
 5. Thử đăng ký tài khoản mới bằng email thật → nhận email "Xác nhận email đăng ký tài khoản Nestly".
 
@@ -141,6 +143,8 @@ Render bản miễn phí **chặn các cổng SMTP 25, 465, 587**, nên không g
 | Trình duyệt báo lỗi CORS | `CORS_ORIGIN` khác domain frontend (thừa `/` ở cuối, sai `http/https`). Sửa rồi deploy lại backend |
 | Trang web gọi `localhost:5000` | Chưa đặt `VITE_API_URL` hoặc đặt sau khi build → *Clear build cache & deploy* frontend |
 | Đăng ký xong không nhận được email | Xem mục Spam; log `nestly-api` có `Không gửi được email` → sai `BREVO_API_KEY` hoặc `MAIL_FROM` chưa xác minh trong Brevo. Log có `[Mail - chưa cấu hình gửi thật]` → `MAIL_PROVIDER` chưa là `brevo` |
+| Log ghi `Brevo 403 ... not authorized for resource "transactional.email"` | API key không có quyền gửi email giao dịch → tạo key mới với quyền **Transactional emails** (hoặc Full access), thay `BREVO_API_KEY` |
+| Log ghi `Brevo 401 ... unrecognised IP` | Brevo chặn IP lạ → *Security → Authorised IPs* → tắt chặn |
 | Link trong email trỏ về `localhost` | Chưa đặt `APP_URL` (hoặc `CORS_ORIGIN`) bằng địa chỉ frontend thật |
 | F5 ở `/hotels/...` báo Not Found | Thiếu rule Rewrite `/*` → `/index.html` của Static Site |
 | VNPay báo "Sai chữ ký" | `VNP_HASH_SECRET` / `VNP_TMN_CODE` sai hoặc thừa khoảng trắng |

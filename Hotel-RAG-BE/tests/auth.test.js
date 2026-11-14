@@ -56,13 +56,10 @@ test('Đăng ký -> gửi email xác nhận, chưa xác nhận thì chưa đăng
   assert.equal(login.body.token, undefined);
 });
 
-test('Trùng tên đăng nhập / email -> 409', async () => {
-  let res = await ctx.api('POST', '/auth/register', { body: { username: 'minh.an', email: 'khac@gmail.com', password: 'matkhau123' } });
+test('Trùng tên đăng nhập -> 409', async () => {
+  const res = await ctx.api('POST', '/auth/register', { body: { username: 'minh.an', email: 'khac@gmail.com', password: 'matkhau123' } });
   assert.equal(res.status, 409);
   assert.equal(res.body.field, 'username');
-  res = await ctx.api('POST', '/auth/register', { body: { username: 'nguoikhac', email: 'minhan@gmail.com', password: 'matkhau123' } });
-  assert.equal(res.status, 409);
-  assert.equal(res.body.field, 'email');
 });
 
 test('Bấm link xác nhận -> đăng nhập được bằng tên đăng nhập; link chỉ dùng 1 lần', async () => {
@@ -162,4 +159,40 @@ test('Vừa đăng ký xong vẫn yêu cầu quên mật khẩu được ngay (b
   tokenFromLastMail('vdk@test.vn', '/reset-password');
   await ctx.api('POST', '/auth/forgot-password', { body: { email: 'vdk@test.vn' } });
   assert.equal(outbox.length, before + 1, 'gửi lần 2 trong 60 giây bị bỏ qua');
+});
+
+test('Một email dùng cho nhiều tài khoản: đăng ký, xác nhận, đăng nhập, quên mật khẩu', async () => {
+  const shared = 'chung@test.vn';
+  for (const username of ['tk.mot', 'tk.hai']) {
+    const res = await ctx.api('POST', '/auth/register', { body: { username, email: shared, password: `${username}-pass1` } });
+    assert.equal(res.status, 201, JSON.stringify(res.body));
+  }
+  assert.equal(await User.countDocuments({ email: shared }), 2);
+
+  // Mỗi tài khoản nhận email xác nhận riêng, tiêu đề ghi tên đăng nhập
+  for (const username of ['tk.mot', 'tk.hai']) {
+    const m = [...outbox].reverse().find((x) => x.to === shared && x.subject.includes(`(${username})`) && /verify-email/.test(x.text));
+    assert.ok(m, `có email xác nhận cho ${username}`);
+    const token = m.text.match(/token=([a-f0-9]{64})/)[1];
+    assert.equal((await ctx.api('POST', '/auth/verify-email', { body: { token } })).status, 200);
+  }
+
+  // Đăng nhập bằng tên đăng nhập -> đúng tài khoản; gõ email -> tài khoản khớp mật khẩu
+  let login = await ctx.api('POST', '/auth/login', { body: { username: 'tk.hai', password: 'tk.hai-pass1' } });
+  assert.equal(login.body.user.username, 'tk.hai');
+  login = await ctx.api('POST', '/auth/login', { body: { username: shared, password: 'tk.hai-pass1' } });
+  assert.equal(login.status, 200);
+  assert.equal(login.body.user.username, 'tk.hai');
+  login = await ctx.api('POST', '/auth/login', { body: { username: shared, password: 'tk.mot-pass1' } });
+  assert.equal(login.body.user.username, 'tk.mot');
+
+  // Quên mật khẩu -> mỗi tài khoản 1 email riêng; đặt lại tk.hai không ảnh hưởng tk.mot
+  const before = outbox.length;
+  await ctx.api('POST', '/auth/forgot-password', { body: { email: shared } });
+  assert.equal(outbox.length, before + 2);
+  const resetMail = outbox.slice(before).find((x) => x.subject.includes('(tk.hai)'));
+  const token = resetMail.text.match(/token=([a-f0-9]{64})/)[1];
+  assert.equal((await ctx.api('POST', '/auth/reset-password', { body: { token, password: 'tk.hai-moi99' } })).status, 200);
+  assert.equal((await ctx.api('POST', '/auth/login', { body: { username: 'tk.hai', password: 'tk.hai-moi99' } })).status, 200);
+  assert.equal((await ctx.api('POST', '/auth/login', { body: { username: 'tk.mot', password: 'tk.mot-pass1' } })).status, 200);
 });

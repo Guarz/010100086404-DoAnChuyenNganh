@@ -706,6 +706,84 @@
 
 ---
 
+## [14/11/2026] Báo cáo tiến độ mới (file Word)
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:** tạo `D:/School/baocao/BAO CAO TIEN DO - Nhom 13 (14-11-2026).docx` từ mẫu "Kế hoạch làm việc nhóm – Tự đánh giá" bản 25/10 (giữ nguyên các dòng cũ):
+- Thêm dòng "cập nhật đến ngày 14/11/2026" và mục **Tổng quan tiến độ** (giai đoạn 1, giai đoạn 2, kết quả đo được, việc còn lại).
+- Bảng kế hoạch thêm 15 dòng tuần 8–11: xử lý góp ý giữa kỳ, hoàn thiện chức năng, chuẩn hóa dữ liệu Atlas, LLM local, cải tiến Partner, tài liệu minh chứng, báo cáo theo mẫu khoa, slide, xe đưa đón, 63 tỉnh thành, xác nhận email, cải thiện giao diện, chuẩn bị deploy (80%), kiểm thử 91/91, việc tiếp theo.
+- Bảng ghi nhận sử dụng AI thêm 10 dòng với câu lệnh đã dùng; cột "Mức độ sử dụng" và "Hiểu biết" để trống (tô vàng) cho nhóm tự điền trung thực; 3 dòng của phần làm ngày 14/11 chờ bổ sung câu lệnh.
+- Bảng tự đánh giá đóng góp giữ nguyên.
+
+**Kiểm chứng:** xuất PDF bằng Word, soát 17 trang.
+
+**Việc còn lại:** nhóm điền các ô tô vàng, chỉnh người thực hiện nếu cần (mặc định ghi Đỗ Trần Quang Anh theo changelog).
+
+**Tiến độ:** hoàn thành.
+
+---
+
+## [14/11/2026] Làm sạch dữ liệu mẫu khách sạn: bỏ chữ test, bổ sung ảnh phòng, ảnh bìa không trùng
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Hiện trạng trước khi sửa (Atlas):** 20 khách sạn đều có 5 ảnh, 46 link ảnh đều tải được; nhưng 10 khách sạn có tiền tố `[TEST]`, 1 khách sạn có hậu tố `(Test)`, 3 tên + 28 mô tả hạng phòng còn chữ test; cả 42 hạng phòng chỉ có 2 ảnh; nhiều khách sạn dùng chung ảnh bìa; 1 ảnh trong kho ảnh phòng thực ra là ảnh căn nhà có hồ bơi; vài bộ ảnh chứa cùng một ảnh 2 lần (khác tham số `?w=`).
+
+**Thay đổi (`Hotel-RAG-BE/scripts/seedMockData.js`, bước "Hotels & RoomTypes"):**
+- Bỏ `[TEST]` / `(Test)` khỏi tên khách sạn, tên và mô tả hạng phòng; khách sạn đổi tên được tạo lại Vector AI (tên nằm trong nội dung vector).
+- Kho ảnh phòng tăng từ 10 lên 32 ảnh (đã kiểm tra tải được và xem từng ảnh là phòng ngủ / phòng tắm); mỗi hạng phòng tối thiểu 4 ảnh; gỡ ảnh căn nhà khỏi hạng phòng.
+- Mỗi khách sạn một ảnh bìa riêng; so sánh ảnh theo mã ảnh Unsplash nên không còn ảnh trùng trong cùng bộ.
+
+**Đã chạy trên Atlas** (`npm run seed:mock`): 11 khách sạn đổi tên + 11 vector tạo lại, 5 ảnh bìa đổi, 42 hạng phòng bổ sung ảnh, 28 mô tả + 3 tên phòng làm sạch; đồng thời tạo tên đăng nhập cho 29 tài khoản cũ (vd. `mock.customer1`, `mock.transport1`).
+
+**Kiểm chứng:** chạy thử trước trên bản sao local (chép hotels / roomtypes / users từ Atlas), lần 2 không đổi gì. Sau khi chạy trên Atlas: không còn chữ test, 20/20 ảnh bìa khác nhau, 42/42 hạng phòng có 4 ảnh, không ảnh trùng trong bộ, 67 ảnh khác nhau đều tải được (HTTP 200), 20/20 khách sạn có vector 3072 chiều, 0 tài khoản thiếu tên đăng nhập.
+
+**Tiến độ:** hoàn thành (dữ liệu Atlas đã cập nhật), code seed chưa commit.
+
+---
+
+## [14/11/2026] Sửa: không quay lại được trang Đăng nhập sau khi đăng ký; tìm nguyên nhân email xác nhận không gửi được
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**1. Email xác nhận không gửi được — nguyên nhân là cấu hình Brevo, không phải code.** Gọi thử Brevo bằng chính API key đang dùng (yêu cầu không có người nhận nên không gửi mail nào): Brevo trả `403 api key is not authorized for resource "transactional.email"`. API key được tạo với quyền bị giới hạn, **thiếu quyền gửi email giao dịch**. Cách sửa: tạo API key mới trên Brevo với quyền *Transactional emails* (hoặc *Full access*), thay `BREVO_API_KEY` ở `.env` và trên Render.
+- `services/mailService.js`: lỗi Brevo trong log kèm gợi ý cách sửa (thiếu quyền, chặn IP, sai key, người gửi chưa xác minh).
+- `AuthPage.jsx`: đăng ký xong mà gửi mail lỗi thì hiện khung vàng "Đã tạo tài khoản nhưng chưa gửi được email xác nhận" thay vì khung xanh "Kiểm tra hộp thư".
+- `docs/deploy-render.md`: hướng dẫn chọn quyền khi tạo API key, thêm 2 dòng xử lý lỗi.
+
+**2. Đăng ký xong bấm "Đã xác nhận, tới trang Đăng nhập" không quay lại được.** `/login` và `/register` dùng chung component `AuthPage` nên React giữ trạng thái: đường dẫn đổi sang `/login` nhưng vẫn hiện màn "Kiểm tra hộp thư". Sửa `App.jsx`: gắn `key` riêng cho 2 route để mỗi lần chuyển trang tạo AuthPage mới.
+
+**Kiểm chứng:** chạy giao diện với backend local dùng đúng key Brevo hiện tại: đăng ký → khung vàng + log ghi rõ lỗi 403 và cách sửa → bấm "tới trang Đăng nhập" → hiện form đăng nhập (tên đăng nhập + mật khẩu). `npm test` 91/91, `vite build` thành công.
+
+**Việc còn lại:** nhóm tạo API key Brevo mới có quyền gửi email rồi cập nhật `BREVO_API_KEY` (máy + Render).
+
+**Tiến độ:** hoàn thành phần code, chưa commit.
+
+---
+
+## [14/11/2026] Cho phép một email tạo nhiều tài khoản
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:**
+- `models/User.js`: `email` bỏ `unique`, chỉ còn index thường. Chỉ `username` (tên đăng nhập) phải duy nhất.
+- `authController.js`:
+  - Đăng ký không còn chặn email đã dùng.
+  - Đăng nhập bằng email (tài khoản cũ) chọn tài khoản khớp mật khẩu trong các tài khoản dùng email đó.
+  - Quên mật khẩu và gửi lại email xác nhận gửi cho từng tài khoản của email đó (tối đa 10), mỗi tài khoản 1 email riêng.
+- `mailService.js`: tiêu đề email ghi tên đăng nhập, vd. "Đặt lại mật khẩu tài khoản Nestly (minh.an)", để biết thư dành cho tài khoản nào.
+- `seedMockData.js` (bước "Index"): index `users.email_1` đổi từ unique sang thường (trước đây seed ép unique).
+- Tài liệu: `docs/data-dictionary.md`, `README.md`.
+
+**Kiểm chứng:** `npm test` 92/92. Test mới: 2 tài khoản cùng email đều đăng ký được, mỗi tài khoản nhận email xác nhận riêng, đăng nhập bằng email ra đúng tài khoản theo mật khẩu, quên mật khẩu gửi 2 email riêng, đặt lại mật khẩu tài khoản này không ảnh hưởng tài khoản kia. Seed chạy trên DB local có index unique: index được đổi thành thường.
+
+**Đã áp dụng trên Atlas** (`npm run seed:mock`): `users.email_1` giờ là index thường, `username_1` vẫn unique.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 
