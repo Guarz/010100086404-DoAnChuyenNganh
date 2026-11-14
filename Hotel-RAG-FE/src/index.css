@@ -5,6 +5,9 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    /* Luôn chừa chỗ cho thanh cuộn dọc: trang ngắn (vd. /transfers chưa tìm xe) không có thanh cuộn
+       sẽ rộng hơn ~15px, làm header và nội dung bị lệch so với các trang dài. */
+    scrollbar-gutter: stable;
   }
   body {
     @apply font-sans antialiased;
