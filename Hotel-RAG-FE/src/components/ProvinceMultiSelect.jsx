@@ -2,6 +2,7 @@
 // Chọn NHIỀU tỉnh/thành từ danh mục 63 tỉnh (dùng cho "Tỉnh/thành phục vụ" của nhà xe).
 // Chọn trong danh sách để thêm, bấm ✕ trên thẻ để bỏ.
 import ProvinceSelect from "./ProvinceSelect";
+import Icon from "./Icon";
 import { VN_PROVINCES } from "../constants/provinces";
 
 export default function ProvinceMultiSelect({ value = [], onChange, className = "" }) {
@@ -31,7 +32,7 @@ export default function ProvinceMultiSelect({ value = [], onChange, className = 
                 aria-label={`Bỏ ${p}`}
                 className="grid size-6 place-items-center rounded-full text-xs hover:bg-white"
               >
-                ✕
+                <Icon name="x" size={12} />
               </button>
             </span>
           ))}

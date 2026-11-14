@@ -552,6 +552,41 @@
 
 ---
 
+## [14/11/2026] Dữ liệu mẫu xe đưa đón trên MongoDB Atlas (phục vụ demo)
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:** chạy `npm run seed:mock` trên DB `Hotel-RAG` (Atlas). Kết quả: 3 nhà xe đã duyệt (`mock.transport1..3@nestly.test`, mật khẩu `Nestly@2026`), 9 loại xe, 48 tuyến (6 tuyến/tỉnh ở Đà Nẵng, Hà Nội, Hồ Chí Minh, Khánh Hòa, Kiên Giang, Lâm Đồng, Quảng Nam, Thừa Thiên Huế), lịch xe 60 ngày, 12 đơn xe đã thanh toán (6 đã đi, 6 sắp đi). Seed cũng chuẩn hóa tỉnh của 12 tài khoản, xóa index `city` cũ của tuyến xe, mở thêm ngày phòng và vài đơn / đánh giá mẫu.
+
+**Kiểm chứng:** đếm lại trực tiếp trong DB khớp số trên; không còn trường `city` cũ ở tuyến xe.
+
+**Tiến độ:** hoàn thành.
+
+---
+
+## [14/11/2026] Rà soát và cải thiện giao diện (UI/UX, khả năng truy cập)
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:**
+- Font chữ: class `font-display` đã dùng ở nhiều tiêu đề nhưng chưa được khai báo nên mọi chữ đang là font hệ thống. Thêm Be Vietnam Pro (chữ thường) + Playfair Display (tiêu đề), cả hai hỗ trợ đầy đủ dấu tiếng Việt (`index.html`, `tailwind.config.js`).
+- `index.html`: `lang="vi"`, tiêu đề "Nestly", meta description, theme-color. Mỗi trang có tiêu đề tab riêng ("Xe đưa đón sân bay | Nestly"...).
+- Bàn phím / trình đọc màn hình: viền focus rõ khi bấm Tab (trước đó nhiều ô có `outline-none` nên không thấy đang ở đâu), link "Bỏ qua tới nội dung chính", nút menu tài khoản có nhãn + trạng thái mở/đóng, các nút đóng ✕ thành icon SVG có nhãn "Đóng". Tôn trọng cài đặt "giảm chuyển động" của hệ điều hành.
+- Header: thêm mục "Khách sạn" cạnh "Xe đưa đón", tô sáng trang đang xem; menu tài khoản đóng khi bấm ra ngoài hoặc nhấn Esc, không tràn màn hình nhỏ.
+- Trang chủ: thẻ khách sạn là link thật (mở bằng bàn phím, mở tab mới được), bỏ nhãn "Trạng thái" trống, hiện số đánh giá; huy hiệu "Hơn 12.000 chỗ nghỉ" đổi thành số khách sạn thật. Sửa ô ngày tràn ngang trên điện thoại.
+- Footer: thêm liên kết Khách sạn / Xe đưa đón / Trở thành đối tác / Đăng ký nhà xe.
+- Hiệu năng: các trang (trừ trang chủ) tải khi cần (`React.lazy`), file JS ban đầu còn ~346 kB (hết cảnh báo chunk lớn của Vite); ảnh danh sách khách sạn tải lười.
+
+**File chính:** `Hotel-RAG-FE/index.html`, `tailwind.config.js`, `src/index.css`, `src/App.jsx`, `src/components/{Header,Footer,Icon,Modal,ScrollToTop,AIChatWidget,ProvinceMultiSelect}.jsx`, `src/pages/{Home,Hotels,PartnerDashboard}.jsx`.
+
+**Kiểm chứng:** `vite build` thành công, ESLint 0 lỗi (2 cảnh báo cũ). Xem trên trình duyệt ở 1280px và 375px: font đã tải, menu và Esc hoạt động, viền focus hiện khi Tab; 9 trang công khai (trang chủ, khách sạn, chi tiết, xe đưa đón, đăng nhập, đăng ký, 2 trang đăng ký đối tác) không tràn ngang ở 375px.
+
+**Việc còn lại:** chưa xem lại các trang cần đăng nhập (Partner, Admin, Nhà xe, Hồ sơ) sau khi đổi font. Server Vite đang chạy cần khởi động lại để nhận cấu hình Tailwind mới.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 

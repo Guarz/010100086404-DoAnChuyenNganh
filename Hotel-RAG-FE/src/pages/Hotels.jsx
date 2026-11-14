@@ -371,7 +371,7 @@ export default function Hotels() {
                 className="rounded-full bg-[#173b31] px-3 py-1.5 text-xs font-bold text-white"
                 aria-label={`Bỏ lọc ${label}`}
               >
-                {label} ✕
+                {label} <Icon name="x" size={12} />
               </button>
             ))}
           </div>
@@ -451,6 +451,7 @@ export default function Hotels() {
                           "https://images.unsplash.com/photo-1569335468885-d7d1a41e570c?w=800"
                         }
                         alt={hotel.hotelName}
+                        loading="lazy"
                         className="size-full object-cover"
                       />
                       <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold">

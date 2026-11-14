@@ -1,5 +1,5 @@
 // File: src/App.jsx
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import ScrollToTop from "./components/ScrollToTop";
@@ -9,21 +9,21 @@ import AIChatWidget from "./components/AIChatWidget";
 
 // Pages
 import Home from "./pages/Home";
-import Hotels from "./pages/Hotels";
-import HotelDetail from "./pages/HotelDetail";
-import AuthPage from "./pages/AuthPage";
-import ProfilePage from "./pages/ProfilePage";
-import Checkout from "./pages/Checkout";
-import VNPayReturn from "./pages/VNPayReturn";
-import PartnerApplication from "./pages/PartnerApplication"; // <- MỚI
-import PartnerDashboard from "./pages/PartnerDashboard"; // <- MỚI
-import AdminDashboard from "./pages/AdminDashboard"; // <- MỚI
-import RagAnalyticsDashboard from "./pages/RagAnalyticsDashboard";
+const Hotels = lazy(() => import("./pages/Hotels"));
+const HotelDetail = lazy(() => import("./pages/HotelDetail"));
+const AuthPage = lazy(() => import("./pages/AuthPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const Checkout = lazy(() => import("./pages/Checkout"));
+const VNPayReturn = lazy(() => import("./pages/VNPayReturn"));
+const PartnerApplication = lazy(() => import("./pages/PartnerApplication"));
+const PartnerDashboard = lazy(() => import("./pages/PartnerDashboard"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const RagAnalyticsDashboard = lazy(() => import("./pages/RagAnalyticsDashboard"));
 import ProtectedRoute from "./components/ProtectedRoute"; // <- MỚI
-import Transfers from "./pages/Transfers";
-import TransferCheckout from "./pages/TransferCheckout";
-import TransportApplication from "./pages/TransportApplication";
-import TransportDashboard from "./pages/TransportDashboard";
+const Transfers = lazy(() => import("./pages/Transfers"));
+const TransferCheckout = lazy(() => import("./pages/TransferCheckout"));
+const TransportApplication = lazy(() => import("./pages/TransportApplication"));
+const TransportDashboard = lazy(() => import("./pages/TransportDashboard"));
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(() => {
@@ -39,9 +39,13 @@ export default function App() {
     <BrowserRouter>
       <ScrollToTop />
       <div className="min-h-screen bg-[#fffdf9] text-stone-800 flex flex-col relative">
+        <a href="#main-content" className="sr-only z-[100] rounded-xl bg-[#173b31] px-4 py-3 font-bold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
+          Bỏ qua tới nội dung chính
+        </a>
         <Header loggedIn={loggedIn} onLogout={handleLogout} />
 
-        <main className="flex-1">
+        <div id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
+          <Suspense fallback={<div role="status" className="grid min-h-[60vh] place-items-center font-bold text-[#173b31]">Đang tải...</div>}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/hotels" element={<Hotels />} />
@@ -137,7 +141,8 @@ export default function App() {
               }
             />
           </Routes>
-        </main>
+          </Suspense>
+        </div>
         <Footer />
         <AIChatWidget />
       </div>

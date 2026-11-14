@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Icon from "../components/Icon";
 import API from "../services/api";
 import ProvinceSelect from "../components/ProvinceSelect";
@@ -114,8 +114,10 @@ export default function Home() {
 
         <div className="relative mx-auto flex min-h-[680px] max-w-7xl flex-col justify-center px-6 pb-[21rem] pt-16 sm:pb-72 lg:px-8 lg:pb-32 lg:pt-20">
           <div className="mb-6 flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md">
-            <Icon name="sparkle" size={16} /> Hơn 12.000 chỗ nghỉ đã được tuyển
-            chọn
+            <Icon name="sparkle" size={16} />
+            {featuredHotels.length > 0
+              ? `${featuredHotels.length} khách sạn tuyển chọn · xe đưa đón sân bay`
+              : "Khách sạn tuyển chọn · xe đưa đón sân bay"}
           </div>
           <h1 className="font-display max-w-3xl text-4xl leading-[1.05] font-medium tracking-tight text-white sm:text-6xl lg:text-7xl">
             Đi đâu cũng được.
@@ -158,12 +160,12 @@ export default function Home() {
           <div className="hidden h-10 w-px bg-stone-200 lg:block" />
 
           {/* 2. Ô CHỌN NGÀY */}
-          <div className="flex flex-1 items-center gap-2 rounded-xl px-4 py-3 hover:bg-stone-50">
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-4 py-3 hover:bg-stone-50">
             <span className="text-[#b7812d]">
               <Icon name="calendar" size={22} />
             </span>
-            <div className="flex flex-1 items-center gap-3">
-              <label className="flex-1 cursor-pointer">
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+              <label className="min-w-0 flex-1 cursor-pointer">
                 <span className="block text-xs font-bold uppercase tracking-wider text-stone-400">
                   Nhận phòng
                 </span>
@@ -177,7 +179,7 @@ export default function Home() {
                 />
               </label>
               <span className="text-stone-300">-</span>
-              <label className="flex-1 cursor-pointer">
+              <label className="min-w-0 flex-1 cursor-pointer">
                 <span className="block text-xs font-bold uppercase tracking-wider text-stone-400">
                   Trả phòng
                 </span>
@@ -369,10 +371,10 @@ export default function Home() {
         ) : (
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {featuredHotels.map((hotel) => (
-              <div
+              <Link
                 key={hotel._id}
-                onClick={() => navigate(`/hotels/${hotel._id}`)}
-                className="group min-w-0 cursor-pointer rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition hover:shadow-lg"
+                to={`/hotels/${hotel._id}`}
+                className="group block min-w-0 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
               >
                 <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-stone-100 relative">
                   <img
@@ -381,6 +383,7 @@ export default function Home() {
                       "https://images.unsplash.com/photo-1569335468885-d7d1a41e570c?w=600"
                     }
                     alt={hotel.hotelName}
+                    loading="lazy"
                     className="size-full object-cover transition duration-500 group-hover:scale-105"
                   />
                   {/* Badge Đánh giá */}
@@ -390,21 +393,23 @@ export default function Home() {
                 </div>
 
                 <div className="mt-4 px-1">
-                  <h3 className="truncate text-lg font-bold text-[#173b31]">
+                  <h3 className="truncate text-lg font-bold text-[#173b31]" title={hotel.hotelName}>
                     {hotel.hotelName}
                   </h3>
                   <p className="truncate text-sm text-stone-500">
                     {hotel.address?.city}, {hotel.address?.province}
                   </p>
 
-                  <div className="mt-3 flex items-end justify-between">
-                    <p className="text-xs text-stone-400">Trạng thái</p>
-                    <p className="font-extrabold text-[#b7812d]">
-                      Xem chi tiết
+                  <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-3">
+                    <p className="text-xs font-semibold text-stone-500">
+                      {hotel.reviewCount > 0 ? `${hotel.reviewCount} đánh giá` : "Chưa có đánh giá"}
+                    </p>
+                    <p className="flex items-center gap-1 text-sm font-extrabold text-[#b7812d]">
+                      Xem chi tiết <Icon name="arrow" size={16} />
                     </p>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
