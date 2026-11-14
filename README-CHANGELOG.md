@@ -587,6 +587,54 @@
 
 ---
 
+## [14/11/2026] Chuẩn bị deploy lên Render
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:**
+- `package.json` gốc (backend) khai báo đủ thư viện đang dùng: thêm `bcryptjs`, `jsonwebtoken`, `qs` (trước đó chỉ chạy được nhờ `Hotel-RAG-BE/node_modules` bị commit vào repo); thêm `engines.node >= 20.19`. Cập nhật `package-lock.json`.
+- `createApp.js`: biến `CORS_ORIGIN` (tùy chọn) để chỉ cho domain frontend gọi API; không đặt thì giữ như cũ (mọi nguồn).
+- `paymentController.js`: lấy IP đầu tiên trong `x-forwarded-for` khi gửi VNPay (sau proxy của Render header có nhiều IP).
+- Thêm `render.yaml` (Blueprint: `nestly-api` Web Service + `nestly-web` Static Site có rule rewrite cho React Router), `.env.example`, `Hotel-RAG-FE/.env.example`, hướng dẫn `docs/deploy-render.md`; README trỏ tới hướng dẫn.
+
+**Kiểm chứng:** `npm test` 75/75 pass. Bản sao sạch chỉ gồm code đã commit + `package.json`/lock mới (không có `node_modules` sẵn): `npm ci` rồi `node server.js` khởi động, `/api/health` và `/api/hotels/provinces` trả 200.
+
+**Việc còn lại:** chưa deploy thật (cần tài khoản Render của nhóm); mở `0.0.0.0/0` trong Atlas Network Access; trên Render dùng `LLM_PROVIDER=gemini`.
+
+**Tiến độ:** hoàn thành phần chuẩn bị, chưa commit.
+
+---
+
+## [14/11/2026] Kiểm thử vòng đời Vector AI khi Partner tạo khách sạn / phòng
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:** thêm `Hotel-RAG-BE/tests/embedding.test.js` (6 test, thay Gemini bằng hàm giả nên không gọi mạng). Không sửa code ứng dụng: luồng hiện tại đã đúng.
+
+**Kết quả kiểm tra luồng:**
+- Partner tạo khách sạn → `embedding` rỗng, trạng thái Pending (chưa gọi AI).
+- Admin duyệt → sinh vector 3072 chiều (`gemini-embedding-001`), không trả mảng vector về client.
+- Partner thêm hạng phòng → **không** sinh vector mới (vector thuộc khách sạn); phòng mới vẫn được AI tìm thấy ngay nhờ điểm từ khóa + vector của khách sạn.
+- Partner sửa tên / mô tả / địa chỉ / tiện nghi của KS đã duyệt → tạo lại vector chạy nền; chỉ đổi ảnh → không tạo lại.
+- Gemini lỗi khi duyệt → vẫn duyệt, Admin được báo "chưa tạo được Vector AI" (bổ sung sau bằng `npm run seed:mock -- --embeddings`).
+- Atlas hiện tại: 20/20 khách sạn đã duyệt đều có vector 3072 chiều.
+
+**Kiểm chứng:** `npm test` 81/81 pass.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
+## [14/11/2026] Deploy Render dùng Ollama chạy trên Google Colab
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:** `render.yaml` đặt `LLM_PROVIDER=ollama` và thêm biến `OLLAMA_URL`, `OLLAMA_API_KEY` (nhập tay), `OLLAMA_MODEL=dolphin3`, `OLLAMA_TIMEOUT_MS=120000` cho `nestly-api`. `docs/deploy-render.md`: sơ đồ Render → tunnel Cloudflare → Ollama trên Colab, cách cập nhật URL/khóa mỗi phiên Colab, bảng lỗi liên quan. Không sửa code: backend gọi Ollama qua URL nên chạy trên Render hay trên máy đều giống nhau; khi Colab tắt, trợ lý trả câu dựng sẵn thay vì báo lỗi.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 
