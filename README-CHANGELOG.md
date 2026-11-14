@@ -635,6 +635,23 @@
 
 ---
 
+## [14/11/2026] Sửa bộ lọc tiện nghi trang Khách sạn bị che, không xem hết danh sách
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Lỗi:** trên máy tính, khung "Tiện nghi" dính cố định khi cuộn (sticky) nhưng cao hơn màn hình (20 tiện nghi ≈ 774px, màn 720px chỉ còn ≈ 608px) nên phần cuối danh sách bị che, cuộn trang cũng không thấy.
+
+**Sửa (`Hotel-RAG-FE/src/pages/Hotels.jsx`):**
+- Mặc định hiện 8 tiện nghi phổ biến nhất + nút "Xem thêm N tiện nghi" / "Thu gọn" (có `aria-expanded`); tiện nghi đang chọn luôn hiện dù nằm ngoài nhóm này.
+- Khung lọc giới hạn chiều cao theo màn hình (`max-h: 100dvh - 8rem`) và tự cuộn bên trong khi mở hết danh sách.
+- Tên tiện nghi dài xuống dòng thay vì bị cắt "…"; số lượng dùng chữ số đều.
+
+**Kiểm chứng:** xem trên trình duyệt với dữ liệu Atlas: 1280×720 thu gọn 8 (+1 mục đang chọn), mở rộng 20 mục và cuộn tới được mục cuối; 375px hiện đủ 20 mục, không tràn ngang. ESLint 0 lỗi, `vite build` thành công.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 
