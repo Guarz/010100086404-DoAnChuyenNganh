@@ -13,18 +13,23 @@ Quy ước:
 
 | Trường | Kiểu | Bắt buộc | Mặc định / Ràng buộc | Ý nghĩa |
 |---|---|---|---|---|
-| `fullName` | String | ✔ | | Họ tên hiển thị |
-| `email` | String | ✔ | **unique** | Email đăng nhập, không trùng giữa các tài khoản |
+| `fullName` | String | ✔ | | Họ tên hiển thị (tài khoản mới: mặc định bằng tên đăng nhập, sửa trong trang Tài khoản) |
+| `username` | String | | **unique** (sparse), chữ thường, `^[a-z0-9._]{3,30}$` | Tên đăng nhập. Tài khoản cũ được seed tạo từ phần trước `@` của email |
+| `email` | String | ✔ | **unique** | Email nhận thư xác nhận / đặt lại mật khẩu, không trùng giữa các tài khoản |
 | `password` | String | ✔ | | Mật khẩu đã băm bằng bcrypt (không bao giờ lưu mật khẩu gốc, không trả về qua API) |
 | `phone` | String | | | Số điện thoại liên hệ (dùng cho Partner liên lạc khách) |
 | `role` | String | | `Customer` · enum: `Customer`, `Partner`, `Transport`, `Admin` | Vai trò, quyết định quyền truy cập API (RBAC) |
 | `partnerApplicationStatus` | String | | `NotRequested` · enum: `NotRequested`, `Pending`, `Approved`, `Rejected` | Trạng thái đơn xin trở thành đối tác; Admin duyệt thì `role` đổi thành `Partner` |
 | `status` | String | | `Active` · enum: `Active`, `Locked` | `Locked` = Admin khóa: không đăng nhập được, token cũ bị từ chối (401) |
+| `emailVerified` | Boolean | | `false` khi vừa đăng ký (nếu bắt buộc xác nhận) | `false` = chưa bấm link xác nhận, chưa được đăng nhập (403). Tài khoản cũ không có trường này được coi là đã xác nhận |
+| `emailVerifyTokenHash`, `emailVerifyExpires` | String, Date | | ẩn (`select: false`), hạn 24 giờ | SHA-256 của token trong link xác nhận email; xóa sau khi dùng |
+| `resetPasswordTokenHash`, `resetPasswordExpires` | String, Date | | ẩn, hạn 30 phút | SHA-256 của token trong link đặt lại mật khẩu; dùng 1 lần |
+| `lastVerifyMailAt`, `lastResetMailAt` | Date | | ẩn | Lần gửi email gần nhất theo từng loại, chặn gửi lại trong 60 giây |
 | `address.street` / `.city` | String | | | Số nhà, đường / quận-huyện (object nhúng) |
 | `address.province` | String | | 1 trong 63 tỉnh/thành ([danh mục](#danh-muc-63-tinh)) | Tỉnh/TP của người dùng; giá trị khác bị từ chối (400) |
 | `createdAt`, `updatedAt` | Date | | tự động | |
 
-**Index:** `email` (unique).
+**Index:** `email` (unique), `username` (unique, sparse).
 
 ---
 

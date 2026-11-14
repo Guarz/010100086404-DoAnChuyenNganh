@@ -1,8 +1,13 @@
 // File: src/pages/AuthPage.jsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Icon from "../components/Icon"; // Sửa lại đường dẫn này nếu thư mục Icon của bạn khác
 import API from "../services/api";
+import ResendVerification from "../components/ResendVerification";
+
+const EMPTY_FORM = { username: "", email: "", password: "" };
+const inputClass =
+  "mt-2 w-full rounded-xl border border-slate-200 px-4 py-3.5 font-normal outline-none transition focus:border-[#173b31] focus:ring-3 focus:ring-emerald-100";
 
 const photos = {
   anam: "https://images.unsplash.com/photo-1596178065887-1198b6148b2b?auto=format&fit=crop&w=900&q=85",
@@ -16,11 +21,12 @@ export default function AuthPage({ mode = "login", onSuccess }) {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-  });
+  const [busy, setBusy] = useState(false);
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  // Đăng ký xong cần xác nhận email -> hiện hướng dẫn thay cho form
+  const [pendingEmail, setPendingEmail] = useState("");
+  // Đăng nhập bị chặn vì chưa xác nhận email -> hiện ô gửi lại email xác nhận
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   // 2. CÁC HÀM XỬ LÝ SỰ KIỆN CŨNG NẰM TRONG NÀY
   const handleChange = (e) => {
@@ -30,12 +36,14 @@ export default function AuthPage({ mode = "login", onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg("");
+    setNeedsVerification(false);
+    setBusy(true);
 
     try {
       if (isLogin) {
-        // GỌI API ĐĂNG NHẬP
+        // GỌI API ĐĂNG NHẬP bằng tên đăng nhập (tài khoản cũ có thể gõ email vào cùng ô)
         const res = await API.post("/auth/login", {
-          email: formData.email,
+          username: formData.username,
           password: formData.password,
         });
 
@@ -50,16 +58,15 @@ export default function AuthPage({ mode = "login", onSuccess }) {
       } else {
         // GỌI API ĐĂNG KÝ
         const res = await API.post("/auth/register", formData);
-        if (res.data.success) {
-          setSuccessMsg(
-            "Tạo tài khoản thành công! Đang chuyển đến Đăng nhập...",
-          );
-
-          // 3. Đợi 2 giây rồi mới tự động chuyển hướng sang /login
+        if (res.data.requiresVerification) {
+          setPendingEmail(res.data.email || formData.email);
+          setSuccessMsg(res.data.message);
+        } else if (res.data.success) {
+          setSuccessMsg(`${res.data.message} Đang chuyển đến Đăng nhập...`);
           setTimeout(() => {
             navigate("/login");
-            setSuccessMsg(""); // Xóa thông báo đi
-            setFormData({ fullName: "", email: "", password: "" }); // Làm sạch form
+            setSuccessMsg("");
+            setFormData(EMPTY_FORM);
           }, 2000);
         }
       }
@@ -67,6 +74,9 @@ export default function AuthPage({ mode = "login", onSuccess }) {
       setErrorMsg(
         error.response?.data?.message || "Có lỗi xảy ra, vui lòng thử lại.",
       );
+      setNeedsVerification(error.response?.data?.code === "EMAIL_NOT_VERIFIED");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -116,31 +126,35 @@ export default function AuthPage({ mode = "login", onSuccess }) {
               : "Chỉ mất một phút để bắt đầu hành trình của bạn."}
           </p>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold transition hover:bg-slate-50"
-            >
-              G&nbsp;&nbsp;Google
-            </button>
-            <button
-              type="button"
-              className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold transition hover:bg-slate-50"
-            >
-              f&nbsp;&nbsp;Facebook
-            </button>
-          </div>
-
-          <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-            <span className="h-px flex-1 bg-slate-200" /> hoặc tiếp tục với
-            email <span className="h-px flex-1 bg-slate-200" />
-          </div>
-
-          {/* FORM GỌI HÀM SUBMIT TẠI ĐÂY */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {errorMsg && (
-              <p className="text-sm font-bold text-red-500">{errorMsg}</p>
-            )}
+          {pendingEmail ? (
+            <div className="mt-8">
+              <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm leading-6 text-emerald-800">
+                <p className="font-bold">Kiểm tra hộp thư của bạn</p>
+                <p className="mt-1">{successMsg}</p>
+                <p className="mt-2 text-emerald-700/80">Không thấy email? Xem mục Spam / Quảng cáo, hoặc gửi lại bên dưới.</p>
+              </div>
+              <ResendVerification defaultEmail={pendingEmail} />
+              <Link to="/login" className="mt-6 block rounded-xl bg-[#173b31] py-3.5 text-center font-bold text-white hover:bg-[#245a4b]">
+                Đã xác nhận, tới trang Đăng nhập
+              </Link>
+            </div>
+          ) : (
+          <>
+          {/* Lỗi + ô gửi lại email xác nhận nằm NGOÀI form đăng nhập (không lồng form trong form) */}
+          {(errorMsg || needsVerification) && (
+            <div className="mt-8 space-y-4">
+              {errorMsg && (
+                <p role="alert" className="text-sm font-bold text-red-500">{errorMsg}</p>
+              )}
+              {needsVerification && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-bold text-amber-800">Chưa nhận được email xác nhận?</p>
+                  <ResendVerification />
+                </div>
+              )}
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className={`${errorMsg || needsVerification ? "mt-5" : "mt-8"} space-y-4`}>
             {successMsg && (
               <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700 shadow-sm">
                 <svg
@@ -159,32 +173,48 @@ export default function AuthPage({ mode = "login", onSuccess }) {
                 {successMsg}
               </div>
             )}
-            {!isLogin && (
-              <label className="block text-sm font-bold text-slate-700">
-                Họ và tên
-                <input
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  placeholder="Ví dụ: Nguyễn Minh An"
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3.5 font-normal outline-none transition focus:border-[#173b31] focus:ring-3 focus:ring-emerald-100"
-                  required
-                />
-              </label>
-            )}
-
             <label className="block text-sm font-bold text-slate-700">
-              Email
+              Tên đăng nhập
               <input
-                name="email"
-                type="email"
-                value={formData.email}
+                name="username"
+                value={formData.username}
                 onChange={handleChange}
-                placeholder="email@example.com"
-                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3.5 font-normal outline-none transition focus:border-[#173b31] focus:ring-3 focus:ring-emerald-100"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder={isLogin ? "Tên đăng nhập" : "Ví dụ: minh.an"}
+                pattern={isLogin ? undefined : "[A-Za-z0-9._]{3,30}"}
+                title={isLogin ? undefined : "3–30 ký tự: chữ không dấu, số, dấu chấm hoặc gạch dưới"}
+                aria-describedby={isLogin ? undefined : "username-hint"}
+                className={inputClass}
                 required
               />
+              {!isLogin && (
+                <span id="username-hint" className="mt-1.5 block text-xs font-normal text-slate-400">
+                  3–30 ký tự: chữ không dấu, số, dấu chấm hoặc gạch dưới.
+                </span>
+              )}
             </label>
+
+            {!isLogin && (
+              <label className="block text-sm font-bold text-slate-700">
+                Email
+                <input
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  autoComplete="email"
+                  placeholder="email@example.com"
+                  aria-describedby="email-hint"
+                  className={inputClass}
+                  required
+                />
+                <span id="email-hint" className="mt-1.5 block text-xs font-normal text-slate-400">
+                  Chúng tôi sẽ gửi email xác nhận để kích hoạt tài khoản.
+                </span>
+              </label>
+            )}
 
             <label className="block text-sm font-bold text-slate-700">
               Mật khẩu
@@ -195,13 +225,15 @@ export default function AuthPage({ mode = "login", onSuccess }) {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   className="w-full rounded-xl border border-slate-200 px-4 py-3.5 pr-16 font-normal outline-none transition focus:border-[#173b31] focus:ring-3 focus:ring-emerald-100"
                   required
-                  minLength={6}
+                  minLength={isLogin ? undefined : 8}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-[#173b31]"
                 >
                   {showPassword ? "Ẩn" : "Hiện"}
@@ -227,19 +259,22 @@ export default function AuthPage({ mode = "login", onSuccess }) {
                   <input type="checkbox" className="accent-[#173b31]" /> Ghi nhớ
                   tôi
                 </label>
-                <button type="button" className="font-bold text-[#173b31]">
+                <Link to="/forgot-password" className="font-bold text-[#173b31] hover:underline">
                   Quên mật khẩu?
-                </button>
+                </Link>
               </div>
             )}
 
             <button
               type="submit"
-              className="mt-6 w-full rounded-xl bg-[#173b31] py-3.5 font-bold text-white shadow-lg shadow-emerald-950/10 transition hover:bg-[#245a4b]"
+              disabled={busy}
+              className="mt-6 w-full rounded-xl bg-[#173b31] py-3.5 font-bold text-white shadow-lg shadow-emerald-950/10 transition hover:bg-[#245a4b] disabled:opacity-60"
             >
-              {isLogin ? "Đăng nhập" : "Tạo tài khoản"}
+              {busy ? "Đang xử lý..." : isLogin ? "Đăng nhập" : "Tạo tài khoản"}
             </button>
           </form>
+          </>
+          )}
 
           <p className="mt-6 text-center text-sm text-slate-500">
             {isLogin ? "Chưa có tài khoản?" : "Đã có tài khoản?"}{" "}
@@ -247,8 +282,11 @@ export default function AuthPage({ mode = "login", onSuccess }) {
               type="button"
               onClick={() => {
                 navigate(isLogin ? "/register" : "/login");
-                setFormData({ fullName: "", email: "", password: "" }); // Reset form khi chuyển trang
+                setFormData(EMPTY_FORM); // Reset form khi chuyển trang
                 setErrorMsg("");
+                setSuccessMsg("");
+                setPendingEmail("");
+                setNeedsVerification(false);
               }}
               className="font-bold text-[#173b31] hover:underline"
             >

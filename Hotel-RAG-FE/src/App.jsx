@@ -24,6 +24,9 @@ const Transfers = lazy(() => import("./pages/Transfers"));
 const TransferCheckout = lazy(() => import("./pages/TransferCheckout"));
 const TransportApplication = lazy(() => import("./pages/TransportApplication"));
 const TransportDashboard = lazy(() => import("./pages/TransportDashboard"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(() => {
@@ -79,6 +82,9 @@ export default function App() {
               }
             />
             <Route path="/payment/vnpay-return" element={<VNPayReturn />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             {/* Xe đưa đón: khách tìm xe công khai, đặt/ thanh toán cần đăng nhập */}
             <Route path="/transfers" element={<Transfers />} />
             <Route

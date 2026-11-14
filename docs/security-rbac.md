@@ -26,7 +26,7 @@ Ký hiệu: ✅ được phép · 🔒 chỉ trên tài nguyên **của mình** 
 | `PUT /transport/vehicles/:vehicleId`, `POST /transport/vehicles/:vehicleId/routes`, `PUT /transport/routes/:routeId`, `GET/PUT /transport/vehicles/:vehicleId/inventory` | ❌ | ❌ | ❌ | ✅ (Transport: 🔒 xe/tuyến của mình) |
 | `GET /api/admin/transport-companies`, `PUT /admin/transport-companies/:id/status` | ❌ | ❌ | ❌ | ✅ |
 | `GET /api/hotels`, `/hotels/search`, `/hotels/provinces`, `/hotels/amenities`, `/hotels/:id`, `/hotels/:id/rooms`, `GET /api/reviews/hotel/:id`, `POST /api/ai/search` | 🌐 | 🌐 | 🌐 | 🌐 |
-| `POST /api/auth/register`, `/auth/login` | 🌐 | 🌐 | 🌐 | 🌐 |
+| `POST /api/auth/register`, `/auth/login`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/forgot-password`, `/auth/reset-password` | 🌐 | 🌐 | 🌐 | 🌐 |
 | `GET/PUT /api/users/me`, `PUT /users/me/password` | ❌ | 🔒 | 🔒 | 🔒 |
 | `POST /api/bookings`, `GET /bookings/my-bookings`, `GET /bookings/:id`, `PUT /bookings/:id/cancel` | ❌ | 🔒 | 🔒 | 🔒 |
 | `POST /api/payments/vnpay/create_url` | ❌ | 🔒 đơn của mình | 🔒 | 🔒 |
