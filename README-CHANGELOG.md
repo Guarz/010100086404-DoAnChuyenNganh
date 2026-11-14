@@ -652,6 +652,20 @@
 
 ---
 
+## [14/11/2026] Sửa header trang Xe đưa đón bị lệch so với các trang khác
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Lỗi:** trang `/transfers` khi chưa tìm xe ngắn hơn màn hình nên không có thanh cuộn dọc; các trang khác có thanh cuộn (~15px). Vì vậy riêng trang này rộng hơn 15px và cụm nút bên phải header (Khách sạn / Xe đưa đón / menu tài khoản) lệch sang phải. Đo ở 1280px: nút cuối kết thúc ở 1248px thay vì 1233px như mọi trang.
+
+**Sửa:** `Hotel-RAG-FE/src/index.css` thêm `scrollbar-gutter: stable` cho `html`: luôn chừa chỗ cho thanh cuộn, trang ngắn hay dài đều cùng bề rộng.
+
+**Kiểm chứng:** đo lại `/`, `/hotels`, `/transfers`, `/login` ở 1280px: logo cùng x=32, nút cuối cùng 1233px; ảnh chụp header `/transfers` và `/hotels` trùng vị trí. `vite build` thành công.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 
