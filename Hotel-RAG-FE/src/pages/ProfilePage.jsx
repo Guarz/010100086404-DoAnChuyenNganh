@@ -226,9 +226,13 @@ export default function ProfilePage({ onLogout }) {
                   <p className="mt-2 text-sm text-slate-500">Thông tin này được sử dụng cho các đơn đặt phòng của bạn.</p>
                 </div>
                 <div className="mt-7 grid gap-5 sm:grid-cols-2">
-                  <label className="text-sm font-bold text-slate-700 sm:col-span-2">
+                  <label className="text-sm font-bold text-slate-700">
                     Họ và tên
                     <input value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-[#173b31]" />
+                  </label>
+                  <label className="text-sm font-bold text-slate-700">
+                    Tên đăng nhập
+                    <input value={currentUser?.username || "Chưa có (đăng nhập bằng email)"} readOnly className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-normal text-slate-500 outline-none" />
                   </label>
                   <label className="text-sm font-bold text-slate-700">
                     Email

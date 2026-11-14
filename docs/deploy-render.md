@@ -84,9 +84,27 @@ File `render.yaml` ở thư mục gốc đã khai báo sẵn cả 2 dịch vụ 
 | `VNP_URL` | | `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html` |
 | `VNP_RETURN_URL` | ✔ | `https://<frontend>.onrender.com/payment/vnpay-return` |
 | `CORS_ORIGIN` | khuyên dùng | `https://<frontend>.onrender.com` (nhiều domain thì cách nhau dấu phẩy). Để trống = cho phép mọi nguồn |
+| `MAIL_PROVIDER` | | `brevo` (gửi email thật) hoặc `console` (chỉ in link ra log) |
+| `BREVO_API_KEY` | ✔ nếu `brevo` | API key Brevo (mục 3b) |
+| `MAIL_FROM` | ✔ nếu `brevo` | Email người gửi đã xác minh trong Brevo |
+| `MAIL_FROM_NAME` | | `Nestly` |
+| `APP_URL` | ✔ | `https://<frontend>.onrender.com`: dùng để tạo link trong email xác nhận / đặt lại mật khẩu |
+| `EMAIL_VERIFICATION` | | Không đặt = bắt buộc xác nhận email khi đã cấu hình Brevo. `off` = tắt (đăng ký xong đăng nhập ngay) |
 | `NODE_VERSION` | | `22.12.0` |
 
 Không đặt `PORT`: Render tự cấp và `server.js` đã đọc `process.env.PORT`.
+
+### 3b. Gửi email xác nhận / quên mật khẩu (Brevo)
+
+Render bản miễn phí **chặn các cổng SMTP 25, 465, 587**, nên không gửi trực tiếp qua Gmail SMTP được. Backend gửi qua **Brevo HTTP API** (cổng 443), gói miễn phí khoảng 300 email/ngày, không cần tên miền riêng.
+
+1. Đăng ký tài khoản tại brevo.com.
+2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**: nhập Gmail của nhóm (vd. `nestly.doan@gmail.com`), mở email Brevo gửi tới Gmail đó và bấm xác nhận.
+3. **SMTP & API → API Keys → Generate a new API key** → chép key (chỉ hiện 1 lần).
+4. Trên Render (`nestly-api` → *Environment*): `MAIL_PROVIDER=brevo`, `BREVO_API_KEY=<key>`, `MAIL_FROM=<Gmail đã xác minh>`, `APP_URL=https://<frontend>.onrender.com` → **Save and deploy**.
+5. Thử đăng ký tài khoản mới bằng email thật → nhận email "Xác nhận email đăng ký tài khoản Nestly".
+
+> Gửi từ địa chỉ `@gmail.com` qua dịch vụ khác Gmail dễ bị đưa vào **Spam**; nhắc người dùng xem mục Spam. Chưa cấu hình Brevo (`MAIL_PROVIDER=console`) thì không gửi email, link chỉ in ra *Logs* của `nestly-api`, và việc xác nhận email được tự tắt để người dùng mới vẫn đăng nhập được.
 
 **Frontend (`nestly-web`)**
 
@@ -103,8 +121,9 @@ Không đặt `PORT`: Render tự cấp và `server.js` đã đọc `process.env
 2. Mở `https://<backend>.onrender.com/api/hotels/provinces` → danh sách 63 tỉnh kèm số khách sạn.
 3. Mở trang frontend → trang chủ hiện danh sách khách sạn (nếu trống: kiểm tra `VITE_API_URL` và log backend).
 4. Vào thẳng một đường dẫn con, ví dụ `/transfers`, rồi F5 → không bị *Not Found*.
-5. Đăng nhập tài khoản demo (`mock.*@nestly.test`, mật khẩu `Nestly@2026`), đặt phòng hoặc xe → thanh toán VNPay sandbox → quay về trang kết quả trên domain Render.
-6. Bật notebook Colab trước, rồi hỏi trợ lý AI một câu ("khách sạn ở Đà Lạt có hồ bơi") → câu trả lời do model viết. Kiểm tra log `nestly-api` không có dòng `LLM lỗi`.
+5. Đăng nhập tài khoản demo: tên đăng nhập `mock.customer1` (hoặc `mock.transport1`…), mật khẩu `Nestly@2026` (tài khoản chưa có tên đăng nhập thì gõ email vào ô Tên đăng nhập), đặt phòng hoặc xe → thanh toán VNPay sandbox → quay về trang kết quả trên domain Render.
+6. Đăng ký tài khoản mới bằng email thật → nhận email xác nhận → bấm link → đăng nhập. Thử *Quên mật khẩu?* → nhận email → đặt mật khẩu mới.
+7. Bật notebook Colab trước, rồi hỏi trợ lý AI một câu ("khách sạn ở Đà Lạt có hồ bơi") → câu trả lời do model viết. Kiểm tra log `nestly-api` không có dòng `LLM lỗi`.
 
 ## 5. Lưu ý về gói miễn phí
 
@@ -121,6 +140,8 @@ Không đặt `PORT`: Render tự cấp và `server.js` đã đọc `process.env
 | Log backend: `Cannot find module ...` | Thiếu thư viện trong `package.json` gốc. Thêm vào `dependencies`, chạy `npm install`, commit cả `package-lock.json` |
 | Trình duyệt báo lỗi CORS | `CORS_ORIGIN` khác domain frontend (thừa `/` ở cuối, sai `http/https`). Sửa rồi deploy lại backend |
 | Trang web gọi `localhost:5000` | Chưa đặt `VITE_API_URL` hoặc đặt sau khi build → *Clear build cache & deploy* frontend |
+| Đăng ký xong không nhận được email | Xem mục Spam; log `nestly-api` có `Không gửi được email` → sai `BREVO_API_KEY` hoặc `MAIL_FROM` chưa xác minh trong Brevo. Log có `[Mail - chưa cấu hình gửi thật]` → `MAIL_PROVIDER` chưa là `brevo` |
+| Link trong email trỏ về `localhost` | Chưa đặt `APP_URL` (hoặc `CORS_ORIGIN`) bằng địa chỉ frontend thật |
 | F5 ở `/hotels/...` báo Not Found | Thiếu rule Rewrite `/*` → `/index.html` của Static Site |
 | VNPay báo "Sai chữ ký" | `VNP_HASH_SECRET` / `VNP_TMN_CODE` sai hoặc thừa khoảng trắng |
 | Thanh toán xong quay về `localhost` | `VNP_RETURN_URL` vẫn là địa chỉ máy cá nhân |

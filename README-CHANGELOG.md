@@ -666,6 +666,46 @@
 
 ---
 
+## [14/11/2026] Bỏ nút đăng nhập / đăng ký bằng Google, Facebook
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:** `Hotel-RAG-FE/src/pages/AuthPage.jsx` gỡ 2 nút "Google", "Facebook" và dòng "hoặc tiếp tục với email" ở trang Đăng nhập và Đăng ký. Hai nút này chỉ là giao diện, không gắn chức năng (backend không có đăng nhập mạng xã hội). Hệ thống chỉ đăng nhập / đăng ký bằng email + mật khẩu.
+
+**Kiểm chứng:** xem `/login`, `/register` ở 1280px: không còn chữ Google/Facebook, form email ngay dưới tiêu đề, không tràn ngang. ESLint và `vite build` qua.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
+## [14/11/2026] Đăng ký bằng tên đăng nhập, xác nhận email và quên mật khẩu qua email
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:**
+- **Đăng ký:** tên đăng nhập + email + mật khẩu (≥ 8 ký tự). Tên đăng nhập 3–30 ký tự `a-z 0-9 . _`, không trùng. Đăng ký xong gửi email "Xác nhận email" (link hạn 24 giờ); chưa bấm link thì đăng nhập bị chặn (403) và có ô "Gửi lại email xác nhận".
+- **Đăng nhập:** tên đăng nhập + mật khẩu. Tài khoản cũ chưa có tên đăng nhập vẫn gõ email vào cùng ô được.
+- **Quên mật khẩu:** trang `/forgot-password` nhập email → email chứa link `/reset-password?token=…` (hạn 30 phút, dùng 1 lần) → đặt mật khẩu mới. Câu trả lời luôn giống nhau dù email có tồn tại hay không (không lộ email đã đăng ký); mỗi loại email gửi tối đa 1 lần / 60 giây.
+- Backend: `services/mailService.js` (Brevo HTTP API hoặc `console` in link ra log), `controllers/authController.js` viết lại, 4 API mới `/auth/verify-email`, `/auth/resend-verification`, `/auth/forgot-password`, `/auth/reset-password`. `models/User.js` thêm `username`, `emailVerified`, token (chỉ lưu SHA-256, ẩn khỏi API).
+- Vì Render bản miễn phí chặn cổng SMTP 25/465/587 nên không gửi qua Gmail SMTP; dùng Brevo (miễn phí, cho phép người gửi là Gmail đã xác minh). Chưa cấu hình Brevo thì việc xác nhận email tự tắt để không khóa người dùng mới (`EMAIL_VERIFICATION` để bật/tắt thủ công).
+- Frontend: `AuthPage.jsx` (form mới, màn "Kiểm tra hộp thư"), trang mới `VerifyEmail.jsx`, `ForgotPassword.jsx`, `ResetPassword.jsx`, component `AuthCard.jsx`, `ResendVerification.jsx`; trang Tài khoản hiện tên đăng nhập.
+- `seedMockData.js` thêm bước "Tên đăng nhập": tạo tên từ phần trước `@` của email cho tài khoản cũ (vd. `mock.transport1`).
+- Tài liệu: `.env.example`, `render.yaml` (biến `MAIL_PROVIDER`, `BREVO_API_KEY`, `MAIL_FROM`, `APP_URL`), `docs/deploy-render.md` (mục 3b Brevo), `docs/data-dictionary.md`, `docs/security-rbac.md`, `README.md`.
+
+**Kiểm chứng:**
+- `npm test` 91/91 pass, trong đó `tests/auth.test.js` 10 test: kiểm tra đầu vào, chưa xác nhận không đăng nhập được, trùng tên / email, link xác nhận dùng 1 lần, tài khoản cũ đăng nhập bằng email, gửi lại có giới hạn, quên → đặt lại mật khẩu, link hết hạn, tắt xác nhận, vừa đăng ký vẫn quên mật khẩu được ngay.
+- Chạy giao diện trên DB local (mail in ra log): đăng ký → màn kiểm tra hộp thư → đăng nhập bị chặn kèm ô gửi lại → mở link xác nhận → đăng nhập → quên mật khẩu → mở link → đặt mật khẩu mới → mật khẩu cũ bị từ chối, mật khẩu mới vào được. 5 trang không tràn ngang ở 375px.
+- Seed chạy 2 lần trên DB local: lần 1 tạo tên đăng nhập cho 15 tài khoản, lần 2 không đổi gì.
+- Lỗi phát hiện khi chạy thử và đã sửa: ô "Gửi lại" nằm trong form đăng nhập (form lồng nhau); email xác nhận và email quên mật khẩu dùng chung bộ đếm 60 giây nên vừa đăng ký xong bấm quên mật khẩu không nhận được mail.
+
+**Việc còn lại:**
+- Chưa gửi email thật: cần tạo tài khoản Brevo, xác minh Gmail người gửi, đặt biến trên Render.
+- Chưa chạy `npm run seed:mock` trên Atlas để tạo tên đăng nhập cho tài khoản hiện có (trước đó vẫn đăng nhập bằng email được).
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 

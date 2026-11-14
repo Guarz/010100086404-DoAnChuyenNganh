@@ -158,6 +158,23 @@ async function fixUsers() {
   }
 }
 
+// Tài khoản cũ chưa có tên đăng nhập -> tạo từ phần trước @ của email
+// (vd. mock.transport1@nestly.test -> mock.transport1), trùng thì thêm số.
+async function assignUsernames() {
+  const taken = new Set((await User.find({ username: { $exists: true } }).select('username').lean()).map((u) => u.username));
+  const users = await User.find({ username: { $exists: false } }).select('email').sort({ createdAt: 1 }).lean();
+  for (const u of users) {
+    let base = String(u.email).split('@')[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/đ/g, 'd').replace(/[^a-z0-9._]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 26);
+    if (base.length < 3) base = `user.${base}`.replace(/\.+$/, '');
+    let name = base;
+    for (let i = 2; taken.has(name); i++) name = `${base}${i}`;
+    taken.add(name);
+    await User.updateOne({ _id: u._id }, { $set: { username: name } });
+    count('users: tạo tên đăng nhập');
+  }
+}
+
 // =====================================================================
 const ROOM_TEMPLATES = [
   { suffix: 'Standard Double', factor: 1, maxAdults: 2, maxChildren: 1, qty: 12, amenities: ['Wifi miễn phí', 'Điều hòa', 'Smart TV', 'Bàn làm việc'] },
@@ -573,7 +590,8 @@ async function seedTransfers() {
     ['RoomInventory', extendInventory],
     ['Bookings / Payments / Reviews', seedBookingsAndReviews],
     ['Rating khách sạn', recalculateRatings],
-    ['Xe đưa đón', seedTransfers]
+    ['Xe đưa đón', seedTransfers],
+    ['Tên đăng nhập', assignUsernames] // chạy cuối để có cả tài khoản nhà xe mới tạo
   ];
   if (process.argv.includes('--embeddings')) steps.push(['Vector AI', regenerateEmbeddings]);
 

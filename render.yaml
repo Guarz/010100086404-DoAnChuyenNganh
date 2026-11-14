@@ -43,6 +43,17 @@ services:
         sync: false # https://<tên-frontend>.onrender.com/payment/vnpay-return
       - key: CORS_ORIGIN
         sync: false # https://<tên-frontend>.onrender.com
+      # Email xác nhận đăng ký / quên mật khẩu qua Brevo (Render free chặn cổng SMTP 25/465/587)
+      - key: MAIL_PROVIDER
+        value: brevo
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false # email người gửi đã xác minh trong Brevo (vd. Gmail của nhóm)
+      - key: MAIL_FROM_NAME
+        value: Nestly
+      - key: APP_URL
+        sync: false # https://<tên-frontend>.onrender.com (link trong email)
 
   # ---------- Frontend: React + Vite, build ra trang tĩnh ----------
   - type: web

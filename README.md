@@ -173,7 +173,10 @@ Ma trận phân quyền đầy đủ của mọi endpoint: [`docs/security-rbac.
 | `GET` | `/api/hotels/provinces` | Công khai | 63 tỉnh/thành (A→Z) kèm số khách sạn; bộ lọc gửi `?province=` cho `/api/hotels/search` |
 | `GET` | `/api/hotels/amenities` | Công khai | Danh mục tiện nghi chuẩn kèm số khách sạn (dùng cho bộ lọc) |
 | `GET` | `/api/hotels/:id`, `/api/hotels/:id/rooms` | Công khai | Chi tiết KS, hạng phòng + giá động theo ngày |
-| `POST` | `/api/auth/register`, `/api/auth/login` | Công khai | Đăng ký, đăng nhập (JWT) |
+| `POST` | `/api/auth/register` | Công khai | Đăng ký bằng tên đăng nhập + email + mật khẩu; gửi email xác nhận |
+| `POST` | `/api/auth/login` | Công khai | Đăng nhập bằng tên đăng nhập + mật khẩu (JWT); chưa xác nhận email → 403 `EMAIL_NOT_VERIFIED` |
+| `POST` | `/api/auth/verify-email`, `/api/auth/resend-verification` | Công khai | Xác nhận email bằng token trong link / gửi lại email xác nhận |
+| `POST` | `/api/auth/forgot-password`, `/api/auth/reset-password` | Công khai | Gửi link đặt lại mật khẩu qua email (hạn 30 phút) / đặt mật khẩu mới bằng token |
 | `GET/PUT` | `/api/users/me`, `PUT /api/users/me/password` | Đăng nhập | Hồ sơ cá nhân, đổi mật khẩu |
 | `POST` | `/api/ai/search` | Công khai | Trợ lý RAG |
 | `POST` | `/api/bookings` | Đăng nhập | Tạo đơn, giữ chỗ 5 phút; header `Idempotency-Key` chống đặt trùng |
