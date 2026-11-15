@@ -8,7 +8,8 @@ const STATUS = {
   Rejected: { label: "Từ chối", className: "bg-red-100 text-red-700" },
 };
 
-export default function TransportCompaniesPanel() {
+// onSummary: báo số hồ sơ theo trạng thái lên trang Admin (hiện số chờ duyệt trên tab)
+export default function TransportCompaniesPanel({ onSummary }) {
   const [filter, setFilter] = useState("Pending");
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState({ Pending: 0, Approved: 0, Rejected: 0, all: 0 });
@@ -21,6 +22,7 @@ export default function TransportCompaniesPanel() {
       .then((r) => {
         setItems(r.data.data);
         setSummary(r.data.summary);
+        onSummary?.(r.data.summary);
         setError("");
       })
       .catch((e) => setError(e.response?.data?.message || "Không thể tải danh sách nhà xe."))
