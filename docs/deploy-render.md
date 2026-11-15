@@ -149,6 +149,7 @@ Render bản miễn phí **chặn các cổng SMTP 25, 465, 587**, nên không g
 | F5 ở `/hotels/...` báo Not Found | Thiếu rule Rewrite `/*` → `/index.html` của Static Site |
 | VNPay báo "Sai chữ ký" | `VNP_HASH_SECRET` / `VNP_TMN_CODE` sai hoặc thừa khoảng trắng |
 | Thanh toán xong quay về `localhost` | `VNP_RETURN_URL` vẫn là địa chỉ máy cá nhân |
+| VNPay báo "Giao dịch đã quá thời gian chờ thanh toán" ngay khi mở | (Đã sửa 15/11/2026) Máy chủ Render chạy giờ UTC; backend nay luôn gửi giờ Việt Nam cho VNPay và `server.js` đặt `TZ=Asia/Ho_Chi_Minh`. Nếu vẫn gặp: kiểm tra backend đã deploy bản mới |
 | Trợ lý AI chỉ trả câu dựng sẵn, log ghi `LLM lỗi ... fetch failed` | Phiên Colab đã tắt hoặc `OLLAMA_URL` là URL phiên cũ → chạy lại notebook, cập nhật `OLLAMA_URL` |
 | Log ghi `Ollama 401` | `OLLAMA_API_KEY` không khớp phiên Colab hiện tại |
 | Log ghi `The operation was aborted due to timeout` | Model trên Colab trả lời quá lâu (lần đầu nạp model) → hỏi lại, hoặc tăng `OLLAMA_TIMEOUT_MS` |

@@ -784,6 +784,61 @@
 
 ---
 
+## [14/11/2026] Cập nhật file phân chia công việc
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:** tạo `D:/School/baocao/Nhóm 13 - PhanChiaCongViec (cap nhat 14-11-2026).xlsx` từ file phân chia công việc bản 25/10 (file gốc đang mở trong Excel nên không ghi đè, file gốc giữ nguyên):
+- Tiêu đề thêm "CẬP NHẬT: 14/11/2026".
+- 4 dòng cũ "Chưa làm": Đánh giá, Đón khách, Duyệt khách sạn → 100%; Thống kê & Cronjob → 50% (cronjob xong, chưa có thống kê doanh thu toàn sàn ở trang Admin). Cột "Đánh giá nhóm trưởng" ghi ngày hoàn thành.
+- Thêm 14 dòng theo 3 nhóm: Xử lý góp ý giữa kỳ & AI, Mở rộng & hoàn thiện, Kiểm thử – triển khai – tài liệu (deploy Render 80%).
+- Cột G nới rộng để không tràn chữ; bảng đánh giá đóng góp giữ nguyên số liệu.
+
+**Kiểm chứng:** xuất PDF bằng một phiên Excel riêng, soát 3 trang.
+
+**Việc còn lại:** đóng file gốc rồi thay bằng bản mới nếu muốn giữ một tên; chỉnh cột "Người thực hiện" nếu thành viên khác có tham gia (mặc định ghi Đỗ Trần Quang Anh theo changelog).
+
+**Tiến độ:** hoàn thành.
+
+---
+
+## [14/11/2026] Cập nhật báo cáo `maudoan_sua.docx` theo tiến độ 14/11
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:** sửa trực tiếp trên bản nhóm đã chỉnh (giữ nguyên trích dẫn, đoạn điểm mạnh/điểm yếu, câu dẫn hình); bản trước khi sửa lưu tại `D:/School/baocao/maudoan_sua (ban 10-11).docx`. File mới 71 trang.
+- Mở đầu, Chương 1: thêm tác nhân Nhà xe, xe đưa đón, đoạn giai đoạn hoàn thiện; mở rộng phạm vi.
+- Chương 2: mục 2.9.5 "Xác nhận email và đặt lại mật khẩu".
+- Chương 3: dòng Nhà xe trong bảng tác nhân; yêu cầu F20–F26; use case Khách hàng, Quản trị viên vẽ lại và thêm Hình 3.4 use case Nhà xe (Mermaid, cùng kiểu với hình của nhóm); ERD 13 collection; Bảng 3.11–3.15 cho 5 collection xe đưa đón; trường mới của users (username, emailVerified, token) và payments (transferBookingId); kiến trúc có Render và Brevo; đoạn đặt xe dùng lại cơ chế chống bán trùng; dòng quyền sở hữu nhà xe; ảnh đăng nhập mới; mục 3.2.5 với 6 ảnh giao diện (đăng ký, quên mật khẩu, tìm xe, thanh toán đơn xe, trung tâm nhà xe, duyệt nhà xe); kiểm thử 91/91 kèm 4 file test mới; số liệu Atlas ngày 14/11.
+- Kết luận, hạn chế, hướng phát triển và Phụ lục A/B (API mới, deploy Render) cập nhật tương ứng.
+- Hình từ 3.4 trở đi tăng 1, bảng từ 3.11 trở đi tăng 5 (kể cả các câu "xem Hình/Bảng"); mục lục, danh mục bảng, hình cập nhật bằng Word.
+- `docs/mermaid-bao-cao.md`: mã Mermaid mới cho Hình 3.1, 3.3, thêm Hình 3.4 (Nhà xe), ERD đổi thành Hình 3.5.
+
+**Kiểm chứng:** ảnh giao diện chụp trên bản sao dữ liệu local (chỉ đọc Atlas); xuất PDF bằng Word, soát toàn bộ 71 trang.
+
+**Việc còn lại:** nhóm đọc lại các đoạn mới; slide thuyết trình chưa có phần xe đưa đón.
+
+**Tiến độ:** hoàn thành.
+
+---
+
+## [15/11/2026] Sửa VNPay luôn báo "Giao dịch đã quá thời gian chờ thanh toán" trên Render
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Nguyên nhân:** `formatVNPayDate` (`controllers/paymentController.js`) định dạng `vnp_CreateDate` / `vnp_ExpireDate` theo múi giờ của máy chủ (`getHours()`), trong khi VNPay hiểu đó là giờ Việt Nam (GMT+7). Trên máy cá nhân (giờ VN) thì đúng; máy chủ Render chạy UTC (chậm 7 tiếng) nên hạn thanh toán "+5 phút" bị VNPay đọc thành khoảng 7 tiếng trước -> báo quá thời gian chờ ngay khi mở trang. Kiểm tra lại cách cũ với TZ=UTC: hạn thanh toán bị hiểu là -415 phút.
+
+**Sửa:**
+- `formatVNPayDate` luôn quy đổi sang GMT+7 (dùng `getUTC*` + 7 giờ), không phụ thuộc múi giờ máy chủ.
+- `server.js` đặt `process.env.TZ = 'Asia/Ho_Chi_Minh'` (nếu chưa đặt) để các phép tính "hôm nay" trên Render khớp với khi chạy trên máy; không cần thêm biến môi trường trên Render.
+- `docs/deploy-render.md`: thêm dòng xử lý lỗi.
+
+**Kiểm chứng:** test mới `tests/vnpay-time.test.js` chạy với TZ=UTC: định dạng giờ đúng (kể cả qua nửa đêm, qua năm mới); gọi API tạo link VNPay thì `vnp_CreateDate` = thời điểm hiện tại, `vnp_ExpireDate` = hết hạn giữ chỗ, đều theo giờ VN. `npm test` 94/94 pass.
+
+**Tiến độ:** hoàn thành, chưa commit. Cần push để Render deploy lại backend.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 
@@ -804,3 +859,15 @@ MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔN
 
 ---
 -->
+
+## 2026-11-14 – Cập nhật ERD theo model hiện tại
+
+**Thay đổi:**
+- `docs/erd.mmd`: bổ sung các trường mới của USER (username, emailVerified, các token xác nhận email / đặt lại mật khẩu), ghi chú địa chỉ 63 tỉnh/thành; thêm quan hệ TRANSPORT_COMPANY – TRANSFER_ROUTE và VEHICLE_TYPE – TRANSFER_BOOKING; thêm createdAt/updatedAt cho VEHICLE_INVENTORY. Đối chiếu với 13 model trong `Hotel-RAG-BE/models`.
+- Vẽ lại `docs/erd.png`; thêm `docs/mermaid-bao-cao.md` gom mã Mermaid của các hình báo cáo.
+
+**Việc còn lại:** `docs/data-dictionary.md` chưa cập nhật các trường/collection mới (xe đưa đón, trường USER); hình ERD trong báo cáo Word (Hình 3.4) vẫn là bản 8 collection.
+
+## 2026-11-14 – Đính chính: từ điển dữ liệu đã đầy đủ
+
+**Thay đổi:** Không sửa code. Đối chiếu `docs/data-dictionary.md` với 13 model: đã có đủ 13 collection (kể cả xe đưa đón) và các trường mới của `users`, `payments`. Mục "Việc còn lại" của mục ERD cùng ngày về từ điển dữ liệu là nhận định sai, không cần cập nhật.
