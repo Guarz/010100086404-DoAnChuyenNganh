@@ -12,7 +12,7 @@ const { generateText } = require('../services/llmService');
 exports.getUsers = async (req, res) => {
   try {
     const users = await User.find()
-      .select('fullName email phone role status partnerApplicationStatus createdAt')
+      .select('username fullName email phone role status partnerApplicationStatus createdAt')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -48,7 +48,7 @@ exports.updateUserStatus = async (req, res) => {
       userId,
       { status },
       { returnDocument: 'after', runValidators: true }
-    ).select('fullName email phone role status partnerApplicationStatus createdAt');
+    ).select('username fullName email phone role status partnerApplicationStatus createdAt');
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });

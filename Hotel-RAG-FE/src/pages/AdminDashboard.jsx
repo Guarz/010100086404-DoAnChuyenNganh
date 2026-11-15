@@ -1,6 +1,6 @@
 // File: src/pages/AdminDashboard.jsx
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import Icon from "../components/Icon"; // Hoặc "../components/Icon"
 import StatCard from "../components/StatCard";
 import API from "../services/api";
@@ -12,6 +12,22 @@ const HOTEL_FILTERS = [
   { value: "Rejected", label: "Từ chối" },
   { value: "all", label: "Tất cả" },
 ];
+
+// Các tab của trang quản trị (lưu trên URL ?tab=... để F5 / gửi link vẫn mở đúng tab)
+const TABS = ["hotels", "partners", "users", "transport"];
+
+// Ảnh Unsplash: lấy bản nhỏ cho ô thu nhỏ thay vì bản 1200px
+const thumb = (url, width = 240) =>
+  /images\.unsplash\.com/.test(url || "")
+    ? url.replace(/([?&])w=\d+/, `$1w=${width}`).replace(/([?&])q=\d+/, "$1q=70")
+    : url;
+
+const ROLE_LABEL = {
+  Customer: "Khách hàng",
+  Partner: "Đối tác",
+  Transport: "Nhà xe",
+  Admin: "Quản trị viên",
+};
 
 const HOTEL_STATUS_BADGE = {
   Pending: { label: "CHỜ DUYỆT", className: "bg-amber-50 text-amber-700" },
@@ -43,7 +59,11 @@ export default function AdminDashboard() {
   const [userSearch, setUserSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState("all");
   const [userStatusFilter, setUserStatusFilter] = useState("all");
-  const [tab, setTab] = useState("hotels");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = TABS.includes(searchParams.get("tab")) ? searchParams.get("tab") : "hotels";
+  const setTab = (next) => setSearchParams(next === "hotels" ? {} : { tab: next }, { replace: true });
+  const [transportPending, setTransportPending] = useState(0);
+  const [apiHealthy, setApiHealthy] = useState(null); // null = đang kiểm tra
   const [toast, setToast] = useState("");
 
   const currentUserId = (() => {
@@ -104,10 +124,27 @@ export default function AdminDashboard() {
     }
   };
   useEffect(() => {
-    // Yêu cầu ESLint bỏ qua cảnh báo này vì đây là pattern lấy dữ liệu hợp lệ
+    // Tải ngay số liệu của mọi tab để thẻ thống kê và số trên tab đúng từ đầu
+    // (trước đây đơn partner chỉ tải khi bấm vào tab nên luôn hiện 0)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadHotels("Pending");
+    loadPartnerApplications();
+    if (tab === "users") loadUsers();
+    API.get("/admin/transport-companies", { params: { status: "Pending" } })
+      .then((r) => setTransportPending(r.data.summary?.Pending || 0))
+      .catch(() => {});
+    API.get("/health")
+      .then(() => setApiHealthy(true))
+      .catch(() => setApiHealthy(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Thông báo thành công tự ẩn sau 5 giây (trừ thông báo đang xử lý)
+  useEffect(() => {
+    if (!toast || toast.startsWith("Đang")) return undefined;
+    const timer = setTimeout(() => setToast(""), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const changeHotelFilter = (status) => {
     setHotelFilter(status);
@@ -224,7 +261,7 @@ export default function AdminDashboard() {
     const search = userSearch.trim().toLocaleLowerCase("vi");
     const matchesSearch =
       !search ||
-      [user.fullName, user.email, user.phone]
+      [user.username, user.fullName, user.email, user.phone]
         .filter(Boolean)
         .some((value) => value.toLocaleLowerCase("vi").includes(search));
     const matchesRole =
@@ -255,20 +292,25 @@ export default function AdminDashboard() {
             >
               <Icon name="sparkle" size={16} /> RAG Analytics
             </Link>
-            <div className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm">
-              <span className="size-2 rounded-full bg-emerald-500" /> Hệ thống
-              hoạt động tốt
+            <div role="status" className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm">
+              <span
+                aria-hidden="true"
+                className={`size-2 rounded-full ${apiHealthy === null ? "bg-stone-300" : apiHealthy ? "bg-emerald-500" : "bg-red-500"}`}
+              />
+              {apiHealthy === null ? "Đang kiểm tra API..." : apiHealthy ? "API hoạt động" : "Không kết nối được API"}
             </div>
           </div>
         </div>
 
         {toast && (
-          <div className="mt-6 flex items-center justify-between rounded-2xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+          <div role="status" aria-live="polite" className="mt-6 flex items-center justify-between gap-4 rounded-2xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
             <span className="flex items-center gap-2">
               <Icon name="check" />
               {toast}
             </span>
-            <button onClick={() => setToast("")}>Đóng</button>
+            <button type="button" onClick={() => setToast("")} aria-label="Đóng thông báo" className="grid size-8 shrink-0 place-items-center rounded-full hover:bg-emerald-100">
+              <Icon name="x" size={16} />
+            </button>
           </div>
         )}
 
@@ -295,12 +337,15 @@ export default function AdminDashboard() {
             icon="users"
             label="Đơn partner chờ duyệt"
             value={partnersLoading ? "..." : String(partners.length)}
-            note="Yêu cầu trở thành đối tác"
+            note={transportPending ? `${transportPending} hồ sơ nhà xe chờ duyệt` : "Yêu cầu trở thành đối tác"}
           />
         </div>
 
-        <div className="mt-8 flex max-w-full overflow-x-auto rounded-full bg-stone-200/70 p-1 sm:w-fit">
+        <div role="tablist" aria-label="Khu vực quản trị" className="mt-8 flex max-w-full overflow-x-auto rounded-full bg-stone-200/70 p-1 sm:w-fit">
           <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "hotels"}
             onClick={() => setTab("hotels")}
             className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold transition sm:px-5 ${
               tab === "hotels"
@@ -314,6 +359,9 @@ export default function AdminDashboard() {
             </span>
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "partners"}
             onClick={() => {
               setTab("partners");
               loadPartnerApplications();
@@ -330,6 +378,9 @@ export default function AdminDashboard() {
             </span>
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "users"}
             onClick={() => {
               setTab("users");
               loadUsers();
@@ -343,6 +394,9 @@ export default function AdminDashboard() {
             Quản lý người dùng
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "transport"}
             onClick={() => setTab("transport")}
             className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold transition sm:px-5 ${
               tab === "transport"
@@ -350,11 +404,16 @@ export default function AdminDashboard() {
                 : "text-stone-500"
             }`}
           >
-            Duyệt nhà xe
+            Duyệt nhà xe{" "}
+            <span className="ml-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs">
+              {transportPending}
+            </span>
           </button>
         </div>
 
-        {tab === "transport" && <TransportCompaniesPanel />}
+        {tab === "transport" && (
+          <TransportCompaniesPanel onSummary={(s) => setTransportPending(s?.Pending || 0)} />
+        )}
 
         {tab === "users" && (
           <section className="mt-5 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
@@ -384,7 +443,7 @@ export default function AdminDashboard() {
                   type="search"
                   value={userSearch}
                   onChange={(event) => setUserSearch(event.target.value)}
-                  placeholder="Tìm theo tên, email hoặc số điện thoại"
+                  placeholder="Tìm theo tên đăng nhập, họ tên, email hoặc số điện thoại"
                   aria-label="Tìm người dùng"
                   className="rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-[#173b31]"
                 />
@@ -459,6 +518,11 @@ export default function AdminDashboard() {
                             <p className="font-bold text-stone-900">
                               {user.fullName}
                             </p>
+                            {user.username && (
+                              <p className="mt-0.5 text-xs font-semibold text-stone-500">
+                                @{user.username}
+                              </p>
+                            )}
                             {isCurrentUser && (
                               <p className="mt-1 text-xs text-stone-400">
                                 Tài khoản admin đang đăng nhập
@@ -471,17 +535,12 @@ export default function AdminDashboard() {
                               {user.phone || "Chưa có số điện thoại"}
                             </p>
                           </td>
-                          <td className="px-6 py-4 text-stone-600">
-                            {{
-                              Customer: "Khách hàng",
-                              Partner: "Đối tác",
-                              Transport: "Nhà xe",
-                              Admin: "Quản trị viên",
-                            }[user.role] || user.role}
+                          <td className="whitespace-nowrap px-6 py-4 text-stone-600">
+                            {ROLE_LABEL[user.role] || user.role}
                           </td>
                           <td className="px-6 py-4">
                             <span
-                              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                              className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold ${
                                 user.status === "Locked"
                                   ? "bg-red-50 text-red-700"
                                   : "bg-emerald-50 text-emerald-700"
@@ -577,7 +636,8 @@ export default function AdminDashboard() {
                         .split(" ")
                         .slice(-2)
                         .map((word) => word[0])
-                        .join("")}
+                        .join("")
+                        .toUpperCase()}
                     </span>
                     <div>
                       <div className="flex items-center gap-3">
@@ -703,10 +763,11 @@ export default function AdminDashboard() {
                       <div className="grid gap-5 lg:grid-cols-[100px_1fr_auto] lg:items-center">
                         {/* Lấy ảnh đầu tiên, nếu không có lấy ảnh mặc định */}
                         <img
-                          src={
+                          src={thumb(
                             item.images?.[0] ||
-                            "https://images.unsplash.com/photo-1678913308053-316cee77afe9?auto=format&fit=crop&w=900&q=85"
-                          }
+                              "https://images.unsplash.com/photo-1678913308053-316cee77afe9?auto=format&fit=crop&w=900&q=85",
+                          )}
+                          loading="lazy"
                           alt={item.hotelName}
                           className="h-24 w-full rounded-xl object-cover lg:w-24"
                         />
@@ -839,7 +900,8 @@ export default function AdminDashboard() {
                               {item.images.map((src) => (
                                 <img
                                   key={src}
-                                  src={src}
+                                  src={thumb(src, 320)}
+                                  loading="lazy"
                                   alt={item.hotelName}
                                   className="h-20 w-28 shrink-0 rounded-lg object-cover"
                                 />

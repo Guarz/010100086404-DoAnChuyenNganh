@@ -839,6 +839,31 @@
 
 ---
 
+## [15/11/2026] Rà soát và sửa trang Quản trị (Admin)
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Lỗi / điểm yếu tìm được** (chạy trang Admin trên bản sao dữ liệu Atlas ở DB local):
+- Thẻ "Đơn partner chờ duyệt" và số trên tab "Duyệt partner" luôn hiện **0** khi mới mở trang dù có 2 đơn đang chờ: đơn partner chỉ được tải khi bấm vào tab.
+- Tab "Duyệt nhà xe" không có số hồ sơ chờ duyệt.
+- Danh sách người dùng không có tên đăng nhập (API `/admin/users` và `/users/me` không trả `username`), không tìm được theo tên đăng nhập; quan trọng khi một email có nhiều tài khoản.
+- Dòng "Hệ thống hoạt động tốt" là chữ cố định, không phản ánh trạng thái thật.
+- Thông báo không tự ẩn, trình đọc màn hình không đọc được; tab không có `role="tab"` / `aria-selected`; F5 luôn quay về tab đầu.
+- Ảnh thu nhỏ 96px trong danh sách khách sạn tải bản 1200px.
+- Nhãn "Đang hoạt động" / "Khách hàng" bị xuống dòng trong bảng; chữ viết tắt ở avatar partner là chữ thường.
+
+**Sửa:**
+- `AdminDashboard.jsx`: tải đơn partner và số nhà xe chờ duyệt ngay khi mở trang; tab ghi trên URL (`/admin?tab=users`…) và có ARIA; số chờ duyệt trên tab nhà xe (cập nhật khi duyệt trong `TransportCompaniesPanel`); trạng thái API thật (gọi `/api/health`); thông báo `aria-live`, tự ẩn sau 5 giây, nút đóng có nhãn; cột người dùng hiện `@tên-đăng-nhập`, tìm được theo tên đăng nhập; nhãn không xuống dòng; ảnh thu nhỏ dùng bản 240–320px + tải lười.
+- Backend: `adminController.getUsers` / cập nhật trạng thái và `userController` (`/users/me`) trả thêm `username`.
+
+**Kiểm chứng:** mở `/admin` trên bản sao local: thẻ và tab partner hiện 2 ngay từ đầu; duyệt 1 đơn → thông báo "Đã duyệt đối tác", số giảm còn 1, thông báo tự ẩn sau 5 giây; F5 ở `?tab=users` vẫn đúng tab; tìm "mock.transport" ra 3 tài khoản nhà xe; ảnh thu nhỏ `w=240`; 4 tab không tràn ngang ở 375px. `npm test` 94/94, ESLint 0 lỗi, `vite build` thành công.
+
+**Việc còn lại:** một tài khoản partner trên Atlas có họ tên "[TEST DATA] Search benchmark partner" (hiện trong danh sách khách sạn của Admin); chưa đổi vì là dữ liệu tài khoản.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 

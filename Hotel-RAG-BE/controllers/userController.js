@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const { normalizeProvince } = require('../constants/provinces');
 const User = require('../models/User');
 
-const PUBLIC_FIELDS = 'fullName email phone role status partnerApplicationStatus address createdAt';
+const PUBLIC_FIELDS = 'username fullName email phone role status partnerApplicationStatus address createdAt';
 
 // [GET] /api/users/me
 exports.getMe = async (req, res) => {
