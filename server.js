@@ -1,3 +1,7 @@
+// Múi giờ Việt Nam cho toàn bộ tiến trình (Render chạy UTC): các phép tính "hôm nay", giờ hiển thị
+// khớp với khi chạy trên máy cá nhân. Đặt TZ khác trong biến môi trường nếu cần.
+process.env.TZ = process.env.TZ || 'Asia/Ho_Chi_Minh';
+
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 

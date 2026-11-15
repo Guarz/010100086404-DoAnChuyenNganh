@@ -6,10 +6,16 @@ const Payment = require('../models/Payment');
 const TransferBooking = require('../models/TransferBooking');
 const mongoose = require('mongoose');
 
+// VNPay hiểu vnp_CreateDate / vnp_ExpireDate là giờ Việt Nam (GMT+7), dạng yyyyMMddHHmmss.
+// Luôn quy đổi sang GMT+7, KHÔNG dùng getHours() theo múi giờ máy chủ: trên Render máy chủ chạy UTC
+// (chậm 7 tiếng) khiến hạn thanh toán bị coi là đã qua -> VNPay báo "Giao dịch đã quá thời gian chờ thanh toán".
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const formatVNPayDate = (date) => {
-  const pad = (n) => (n < 10 ? '0' + n : n);
-  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+  const vn = new Date(date.getTime() + VN_OFFSET_MS);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${vn.getUTCFullYear()}${pad(vn.getUTCMonth() + 1)}${pad(vn.getUTCDate())}${pad(vn.getUTCHours())}${pad(vn.getUTCMinutes())}${pad(vn.getUTCSeconds())}`;
 };
+exports.formatVNPayDate = formatVNPayDate;
 
 const sortObject = (obj) => {
   let sorted = {};
