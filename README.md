@@ -51,7 +51,6 @@ OLLAMA_EMBED_MODEL=bge-m3
 - `MONGO_URI`: connection string MongoDB Atlas, có tên database, ví dụ `Hotel-RAG`.
 - `JWT_SECRET`: chuỗi bí mật do bạn tự tạo, dùng để ký/xác minh token đăng nhập.
 - AI chạy hoàn toàn bằng Ollama: `OLLAMA_MODEL=dolphin3` viết câu trả lời, `OLLAMA_EMBED_MODEL=bge-m3` tạo vector cho khách sạn và câu hỏi (cài `ollama pull dolphin3` và `ollama pull bge-m3`, hoặc chạy trên Colab: [`docs/colab-ollama.md`](docs/colab-ollama.md)). Ollama chưa chạy thì chatbot vẫn hoạt động: xếp hạng theo từ khóa và trả câu dựng sẵn.
-- MoMo (sandbox): mặc định dùng bộ khóa test công khai của MoMo, không cần cấu hình; tài khoản thật đặt `MOMO_PARTNER_CODE`, `MOMO_ACCESS_KEY`, `MOMO_SECRET_KEY`, `MOMO_ENDPOINT`.
 - Trong MongoDB Atlas, cho phép địa chỉ IP hiện tại trong **Network Access** và tạo Database User có quyền phù hợp.
 
 ## Chạy API và giao diện
@@ -142,7 +141,7 @@ Chỉ các khách sạn đã có embedding mới phù hợp với tìm kiếm ve
 - Xem / lọc khách sạn đã duyệt (theo tỉnh, giá, tiện nghi), trang chi tiết với hạng phòng và giá theo ngày.
 - Dùng widget AI để tìm khách sạn và xe đưa đón bằng câu hỏi tự nhiên (RAG).
 - Lưu khách sạn **yêu thích** (nút trái tim), xem lại ở tab "Yêu thích" trong trang Tài khoản.
-- Đặt phòng: chọn hạng phòng, ngày, số lượng → đơn `Pending` giữ phòng 5 phút; áp **mã giảm giá** ở trang thanh toán; thanh toán qua **VNPay** hoặc **MoMo** (sandbox). Thanh toán thành công → đơn `Confirmed`, ghi `payments`.
+- Đặt phòng: chọn hạng phòng, ngày, số lượng → đơn `Pending` giữ phòng 5 phút; áp **mã giảm giá** ở trang thanh toán; thanh toán qua **VNPay** (sandbox). Thanh toán thành công → đơn `Confirmed`, ghi `payments`.
 - Xem lịch sử đặt phòng / đặt xe, hủy đơn chưa thanh toán, viết đánh giá sau khi trả phòng.
 - Nhận **thông báo trong trang** (chuông trên header) khi đơn thanh toán thành công, đơn bị hủy, hồ sơ được duyệt.
 
@@ -158,7 +157,7 @@ Chỉ các khách sạn đã có embedding mới phù hợp với tìm kiếm ve
 
 - Khách hàng đã đăng nhập vào **Đăng ký làm nhà xe** (`/transport-apply`): tên nhà xe, SĐT, số giấy phép kinh doanh vận tải, tỉnh/thành phục vụ. Admin duyệt ở tab **Duyệt nhà xe** → role chuyển thành `Transport` (gỡ duyệt → trả về `Customer`).
 - **Trung tâm nhà xe** (`/transport`): thêm/sửa/ẩn loại xe (số chỗ, vali, tổng số xe, tiện nghi, ảnh), thêm tuyến (điểm đón → điểm trả, giá trọn gói / xe), chỉnh số xe trống theo khoảng ngày, xem đơn và bấm "Đã đón khách".
-- Khách tìm xe ở **Xe đưa đón** (`/transfers`) theo tỉnh / khách sạn, ngày, số khách (tự tính số xe cần), giữ xe 5 phút và thanh toán VNPay / MoMo như đơn phòng (áp được mã giảm giá). Có thể hỏi chatbot, ví dụ "xe đón sân bay Đà Nẵng ngày 20/12 cho 4 người". Trang chi tiết khách sạn, trang thanh toán thành công và lịch sử đặt phòng có lối tắt "Đặt xe đưa đón".
+- Khách tìm xe ở **Xe đưa đón** (`/transfers`) theo tỉnh / khách sạn, ngày, số khách (tự tính số xe cần), giữ xe 5 phút và thanh toán VNPay như đơn phòng (áp được mã giảm giá). Có thể hỏi chatbot, ví dụ "xe đón sân bay Đà Nẵng ngày 20/12 cho 4 người". Trang chi tiết khách sạn, trang thanh toán thành công và lịch sử đặt phòng có lối tắt "Đặt xe đưa đón".
 - Cùng cơ chế với đặt phòng: trừ xe nguyên tử theo ngày, `Idempotency-Key`, cronjob hủy đơn quá hạn và trả xe.
 
 ### Quản trị viên (Admin)
@@ -195,8 +194,6 @@ Ma trận phân quyền đầy đủ của mọi endpoint: [`docs/security-rbac.
 | `PUT` | `/api/bookings/:id/cancel` | Chủ đơn | Hủy đơn chưa thanh toán, hoàn quỹ phòng |
 | `POST` | `/api/payments/vnpay/create_url` | Chủ đơn | Tạo link thanh toán VNPay |
 | `GET` | `/api/payments/vnpay/return` | Chữ ký VNPay | Xác nhận kết quả thanh toán (kiểm tra số tiền khớp đơn), ghi `payments` (Success/Failed) |
-| `POST` | `/api/payments/momo/create_url` | Chủ đơn | Tạo link thanh toán MoMo (sandbox) cho đơn phòng / đơn xe |
-| `GET/POST` | `/api/payments/momo/return`, `/api/payments/momo/ipn` | Chữ ký MoMo (HMAC-SHA256) | Kết quả MoMo khi trình duyệt quay về / do server MoMo gọi |
 | `PUT/DELETE` | `/api/bookings/:id/coupon`, `/api/transfers/:id/coupon` | Chủ đơn (đơn đang chờ thanh toán) | Áp / bỏ mã giảm giá, tính lại tổng tiền |
 | `GET` | `/api/coupons/available?kind=hotel\|transfer&hotelId=` | Đăng nhập | Mã đang dùng được (gợi ý ở trang thanh toán) |
 | `GET/POST/PUT/DELETE` | `/api/coupons`, `/api/coupons/:id` | Admin (mã toàn sàn), Partner (mã KS của mình) | Quản lý mã giảm giá |
@@ -251,7 +248,7 @@ Bộ test (`Hotel-RAG-BE/tests/`, 125 test) gồm:
 | `embedding.test.js`, `llm-ollama.test.js` | Tạo vector khi duyệt / sửa khách sạn, gọi Ollama (`/api/chat`, `/api/embed`) |
 | `transfer.test.js` | Nhà xe, tìm / đặt xe đồng thời, hủy, thanh toán đơn xe |
 | `coupon.test.js`, `wishlist.test.js` | Mã giảm giá (giữ / trả lượt), danh sách yêu thích |
-| `momo-notification.test.js`, `vnpay-time.test.js` | Thanh toán MoMo + thông báo, giờ VNPay (GMT+7) |
+| `payment-notification.test.js`, `vnpay-time.test.js` | Kết quả VNPay + thông báo, giờ VNPay (GMT+7) |
 | `report.test.js` | Thống kê doanh thu / lấp phòng, xuất Excel / CSV |
 | `provinces.test.js`, `partner-edit-amenities.test.js` | Danh mục 63 tỉnh, sửa khách sạn / tiện nghi |
 
@@ -274,6 +271,7 @@ node Hotel-RAG-BE/scripts/seedMockData.js --embeddings   # thêm: tạo lại ve
 | Tài liệu | Nội dung |
 | --- | --- |
 | [`docs/progress-and-scope.md`](docs/progress-and-scope.md) | Phạm vi, Task–Owner–Deadline–%–Evidence |
+| [`docs/luong-xu-ly-theo-vai-tro.md`](docs/luong-xu-ly-theo-vai-tro.md) | Luồng xử lý theo use case của từng vai trò (Khách, Đối tác, Nhà xe, Admin, cronjob), viết theo từng bước |
 | [`docs/rag-pipeline.md`](docs/rag-pipeline.md) | Thuật ngữ (RAG, không phải Agent), pipeline ràng buộc cứng, câu hỏi xe đưa đón / theo tỉnh |
 | [`docs/rag-benchmark.md`](docs/rag-benchmark.md) | Benchmark + error analysis |
 | [`docs/booking-concurrency.md`](docs/booking-concurrency.md) | Chống oversell, rollback, idempotency |
@@ -299,6 +297,7 @@ npm run build
 - **Deploy lên Render:** xem [docs/deploy-render.md](docs/deploy-render.md). File `render.yaml` khai báo sẵn backend (Web Service) và frontend (Static Site); mẫu biến môi trường ở `.env.example` và `Hotel-RAG-FE/.env.example`.
 - URL `localhost` chỉ dùng khi frontend và backend chạy trên cùng máy phát triển. Khi deploy, đặt biến `VITE_API_URL` (frontend) thành địa chỉ API thật; có thể giới hạn domain gọi API bằng `CORS_ORIGIN` (backend).
 - Không commit `.env`, mật khẩu database, JWT secret, API key Brevo, khóa Ollama.
-- VNPay và MoMo đang chạy sandbox: VNPay cần `VNP_TMN_CODE`, `VNP_HASH_SECRET`, `VNP_URL`, `VNP_RETURN_URL`; MoMo mặc định dùng khóa test công khai. Cả hai chỉ xác nhận đơn khi số tiền trả khớp tổng tiền của đơn.
+- VNPay đang chạy sandbox: cần `VNP_TMN_CODE`, `VNP_HASH_SECRET`, `VNP_URL`, `VNP_RETURN_URL`. Chỉ xác nhận đơn khi số tiền trả khớp tổng tiền của đơn.
+- Đã bỏ thanh toán MoMo (24/11/2026): MoMo sandbox chặn yêu cầu từ máy chủ Render ở nước ngoài (HTTP 403).
 - Booking chỉ tạo được khi tồn kho có đủ bản ghi cho toàn bộ ngày lưu trú. Tạo booking trừ tồn kho ngay (giữ chỗ 5 phút); cronjob mỗi phút hủy đơn Pending quá hạn và hoàn tồn kho.
 - Mọi API cần quyền đều kiểm tra JWT, vai trò và quyền sở hữu ở backend (`authMiddleware.js`, `ownershipMiddleware.js`).

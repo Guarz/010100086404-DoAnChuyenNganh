@@ -1036,6 +1036,94 @@
 
 ---
 
+## [24/11/2026] Xác nhận: MoMo sandbox chặn yêu cầu từ máy chủ Render (HTTP 403)
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+- Deploy `333749b` (merge `530a2f9` vào `main`).
+- Thử lại trên Render: API báo "MoMo trả HTTP 403, không phải dữ liệu JSON". Cùng yêu cầu gửi từ máy ở Việt Nam thì thành công.
+- Kết luận: MoMo sandbox chặn theo IP / vùng. Code và khóa test không sai.
+- Đã thử cách để trình duyệt khách tự gửi yêu cầu đã ký sang MoMo: không được, vì MoMo không hỗ trợ CORS (preflight trả 405) và API chỉ nhận JSON.
+
+**Hướng xử lý:**
+- Demo MoMo bằng backend chạy trên máy ở Việt Nam.
+- Hoặc thử tạo lại service Render ở region Singapore (chưa chắc MoMo cho qua).
+- Hoặc dùng hosting có máy chủ tại Việt Nam.
+- VNPay trên Render vẫn hoạt động bình thường.
+
+**Tiến độ:** đã xác định nguyên nhân; MoMo trên Render chưa dùng được. Chưa commit.
+
+---
+
+## [24/11/2026] Bỏ thanh toán MoMo
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Lý do:** MoMo sandbox chặn yêu cầu tạo giao dịch từ máy chủ Render (HTTP 403, xem mục trước). Nhóm quyết định chỉ giữ VNPay.
+
+**Thay đổi:**
+- **Backend:**
+  - `paymentController.js`: bỏ `createMoMoUrl`, `momoReturn`, `momoIpn` và phần cấu hình / chữ ký MoMo.
+  - `paymentRoutes.js`: bỏ 3 route `/api/payments/momo/*`.
+  - `.env.example`: bỏ `MOMO_*`, `API_PUBLIC_URL`.
+  - `confirmPaid` (kiểm tra số tiền, không tạo trùng, gửi thông báo) giữ nguyên cho VNPay.
+  - `Payment.paymentMethod` vẫn giữ giá trị `Momo` trong enum để không lỗi dữ liệu cũ.
+- **Frontend:**
+  - `PaymentButtons.jsx` chỉ còn nút "Thanh toán qua VNPay".
+  - Bỏ route `/payment/momo-return`; `VNPayReturn.jsx` bỏ nhánh MoMo.
+- **Test:**
+  - `momo-notification.test.js` thay bằng `payment-notification.test.js`. Test này kiểm tra kết quả VNPay: xác nhận đơn, tải lại không tạo trùng Payment, chữ ký sai / thất bại, đổi mã giảm giá làm lệch số tiền, thông báo. Có thêm kiểm tra endpoint MoMo trả 404.
+  - `report.test.js` đổi dữ liệu mẫu sang VNPay.
+- **Tài liệu:**
+  - `README.md`, `Hotel-RAG-FE/README.md`, `docs/deploy-render.md`, `docs/security-rbac.md`, `docs/data-dictionary.md`.
+  - `docs/erd.mmd` / `erd.png` (xuất lại), `docs/mermaid-bao-cao.md` (use case "Thanh toán VNPay").
+
+**Kiểm chứng:** `npm test` 125/125; ESLint 0 lỗi; `vite build` thành công. Chưa xem lại trang thanh toán trên trình duyệt sau khi bỏ nút MoMo.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
+## [24/11/2026] Tài liệu luồng xử lý theo use case của từng vai trò
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+- Thêm `docs/luong-xu-ly-theo-vai-tro.md`: mô tả đường đi dữ liệu (giao diện → API → kiểm tra → MongoDB / dịch vụ ngoài) cho từng use case. Gồm:
+  - luồng chung của mọi request: CORS → JWT → vai trò → sở hữu;
+  - **Khách hàng**: đăng ký / xác nhận email / quên mật khẩu, tìm khách sạn, chatbot RAG (phòng + xe), đặt phòng giữ chỗ 5 phút, mã giảm giá, VNPay, vòng đời đơn, xe đưa đón, yêu thích, thông báo;
+  - **Đối tác**: khách sạn → duyệt → vector, hạng phòng, quỹ phòng, đơn, mã giảm giá, thống kê;
+  - **Nhà xe**: loại xe → lịch 60 ngày, tuyến, số xe trống, đơn;
+  - **Admin**: duyệt hồ sơ, khóa tài khoản, mã toàn sàn, thống kê, xuất báo cáo, RAG Analytics;
+  - cronjob và bảng tra use case → API → file.
+- 9 sơ đồ Mermaid: flowchart, sequence, state. Đối chiếu với route / controller hiện tại (sau khi bỏ MoMo).
+- `README.md`: thêm file mới vào bảng "Tài liệu cho báo cáo".
+
+**Kiểm chứng:** xuất từng sơ đồ bằng mermaid-cli, cả 9 không lỗi cú pháp.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
+## [24/11/2026] Viết lại tài liệu luồng xử lý theo kiểu từng bước (bỏ sơ đồ Mermaid)
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+- Theo yêu cầu, `docs/luong-xu-ly-theo-vai-tro.md` bỏ 9 sơ đồ Mermaid, chuyển sang trình bày giống `docs/rag-pipeline.md`: các bước đánh số (1), (2)… dạng cây trong khối văn bản, kèm giải thích ngắn.
+- Nội dung giữ nguyên phạm vi, gồm 7 mục:
+  1. luồng chung của mọi request;
+  2. Khách hàng (10 use case);
+  3. Đối tác;
+  4. Nhà xe;
+  5. Admin;
+  6. cronjob;
+  7. bảng tra use case → API → file.
+- Vòng đời đơn phòng vẽ bằng ký tự thay cho sơ đồ trạng thái.
+- `README.md`: sửa mô tả dòng tài liệu này.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 

@@ -1,28 +1,26 @@
 // File: src/pages/VNPayReturn.jsx
-// Trang khách quay về sau khi thanh toán (VNPay: /payment/vnpay-return, MoMo: /payment/momo-return).
+// Trang khách quay về sau khi thanh toán VNPay (/payment/vnpay-return).
 // Gửi nguyên query về backend để kiểm tra chữ ký và xác nhận đơn.
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import API from "../services/api";
 import Icon from "../components/Icon";
 
-export default function VNPayReturn({ provider = "vnpay" }) {
+export default function VNPayReturn() {
   const [status, setStatus] = useState("verifying");
   const [message, setMessage] = useState("");
   const location = useLocation();
   const navigate = useNavigate();
   const hasVerified = useRef(false);
   const params = new URLSearchParams(location.search);
-  // Mã đơn: VNPay gửi vnp_TxnRef; MoMo gửi orderId dạng "<mã đơn>-<thời điểm>"
-  const bookingId = provider === "momo" ? (params.get("orderId") || "").split("-")[0] : params.get("vnp_TxnRef");
+  const bookingId = params.get("vnp_TxnRef"); // mã đơn VNPay gửi về
   const [type, setType] = useState("hotel"); // 'hotel' | 'transfer' (backend trả về theo loại đơn)
-  const providerName = provider === "momo" ? "MoMo" : "VNPay";
 
   useEffect(() => {
     if (hasVerified.current) return;
     hasVerified.current = true;
 
-    API.get(`/payments/${provider}/return${location.search}`)
+    API.get(`/payments/vnpay/return${location.search}`)
       .then((res) => {
         const kind = res.data.type || "hotel";
         setType(kind);
@@ -39,20 +37,20 @@ export default function VNPayReturn({ provider = "vnpay" }) {
         setMessage(err.response?.data?.message || "");
         setStatus("error");
       });
-  }, [location, navigate, provider]);
+  }, [location, navigate]);
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center bg-[#f7f5ef] p-5">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">
         {status === "verifying" && (
-          <h1 role="status" className="text-2xl font-bold text-[#173b31]">Đang kiểm tra giao dịch {providerName}...</h1>
+          <h1 role="status" className="text-2xl font-bold text-[#173b31]">Đang kiểm tra giao dịch VNPay...</h1>
         )}
         {status === "success" && (
           <div role="status">
             <div className="mx-auto flex size-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
               <Icon name="check" size={40} />
             </div>
-            <h1 className="mt-6 text-2xl font-bold text-[#173b31]">Thanh toán {providerName} thành công!</h1>
+            <h1 className="mt-6 text-2xl font-bold text-[#173b31]">Thanh toán VNPay thành công!</h1>
             <p className="mt-2 text-stone-500">Đang chuyển về trang Lịch sử...</p>
           </div>
         )}

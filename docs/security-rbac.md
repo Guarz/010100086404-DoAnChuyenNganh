@@ -35,7 +35,7 @@ Ký hiệu: ✅ được phép · 🔒 chỉ trên tài nguyên **của mình** 
 | `GET/POST/PUT/DELETE /api/coupons[/:id]` | ❌ | ❌ | 🔒 mã của mình, chỉ cho KS của mình | ✅ |
 | `GET /api/partner/stats` | ❌ | ❌ | 🔒 KS của mình | ✅ |
 | `POST /api/bookings`, `GET /bookings/my-bookings`, `GET /bookings/:id`, `PUT /bookings/:id/cancel` | ❌ | 🔒 | 🔒 | 🔒 |
-| `POST /api/payments/vnpay/create_url`, `/payments/momo/create_url` | ❌ | 🔒 đơn của mình | 🔒 | 🔒 |
+| `POST /api/payments/vnpay/create_url` | ❌ | 🔒 đơn của mình | 🔒 | 🔒 |
 | `POST /api/reviews` | ❌ | 🔒 đơn Completed của mình | 🔒 | 🔒 |
 | `POST /api/partner/apply`, `GET /partner/application-status` | ❌ | ✅ | ✅ | ✅ |
 | `POST /api/partner/hotels`, `GET /partner/hotels` | ❌ | ❌ | 🔒 | ✅ |
@@ -45,7 +45,6 @@ Ký hiệu: ✅ được phép · 🔒 chỉ trên tài nguyên **của mình** 
 | `GET /partner/applications/pending`, `PUT /partner/applications/:userId/:decision` | ❌ | ❌ | ❌ | ✅ |
 | `/api/admin/*` (users, hotels, rag-analytics, rag/evaluate, stats, reports/export) | ❌ | ❌ | ❌ | ✅ |
 | `GET /api/payments/vnpay/return` | Xác thực bằng chữ ký HMAC-SHA512 của VNPay (sai chữ ký → 400); số tiền phải khớp tổng tiền hiện tại của đơn | | | |
-| `GET /api/payments/momo/return`, `POST /payments/momo/ipn` | Xác thực bằng chữ ký HMAC-SHA256 của MoMo (so sánh an toàn thời gian); số tiền phải khớp đơn | | | |
 
 ## 3. Lỗ hổng đã phát hiện và vá
 

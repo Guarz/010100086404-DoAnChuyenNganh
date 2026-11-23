@@ -32,7 +32,7 @@ flowchart LR
         U4(["Hỏi trợ lý AI tìm phòng, xe đưa đón"])
         U13(["Lưu khách sạn yêu thích"])
         U5(["Đặt phòng"])
-        U6(["Thanh toán VNPay / MoMo<br/>«include» Đặt phòng"])
+        U6(["Thanh toán VNPay<br/>«include» Đặt phòng"])
         U14(["Áp mã giảm giá<br/>«extend» Thanh toán"])
         U7(["Xem lịch sử và hủy đơn"])
         U8(["Đánh giá khách sạn"])
@@ -257,7 +257,7 @@ erDiagram
         number amount
         string paymentStatus "Pending | Success | Failed"
         date paymentDate
-        string transactionId "mã giao dịch VNPay / MoMo"
+        string transactionId "mã giao dịch VNPay"
         date createdAt
         date updatedAt
     }

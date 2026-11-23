@@ -83,8 +83,7 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="/payment/vnpay-return" element={<VNPayReturn provider="vnpay" />} />
-            <Route path="/payment/momo-return" element={<VNPayReturn key="momo" provider="momo" />} />
+            <Route path="/payment/vnpay-return" element={<VNPayReturn />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />

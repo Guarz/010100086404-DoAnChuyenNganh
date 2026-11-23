@@ -2,7 +2,7 @@
 // Kiểm tra / tính tiền giảm / giữ và trả lượt dùng mã giảm giá cho đơn phòng và đơn xe.
 const Coupon = require('../models/Coupon');
 
-// Số tiền tối thiểu phải thanh toán sau khi giảm (VNPay / MoMo không nhận giao dịch quá nhỏ)
+// Số tiền tối thiểu phải thanh toán sau khi giảm (VNPay không nhận giao dịch quá nhỏ)
 const MIN_PAYABLE = 10000;
 
 class CouponError extends Error {
