@@ -153,7 +153,7 @@ export default function Home() {
                 counts={provinceCounts}
                 countUnit=" KS"
                 placeholder="Tất cả tỉnh/thành"
-                className="mt-1 w-full cursor-pointer bg-transparent font-semibold text-stone-800 outline-none"
+                className="mt-1 min-h-8 w-full cursor-pointer bg-transparent font-semibold text-stone-800 outline-none"
               />
             </span>
           </label>

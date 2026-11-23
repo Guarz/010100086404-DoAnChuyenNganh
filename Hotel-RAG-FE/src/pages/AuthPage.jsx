@@ -111,7 +111,7 @@ export default function AuthPage({ mode = "login", onSuccess }) {
         <div className="flex flex-col justify-center p-7 sm:p-12">
           <button
             onClick={() => navigate("/")}
-            className="mb-10 flex w-fit items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-[#173b31]"
+            className="mb-8 -ml-2 flex min-h-10 w-fit items-center gap-2 rounded-lg px-2 text-sm font-semibold text-slate-500 transition hover:text-[#173b31]"
           >
             ← Về trang chủ
           </button>
@@ -243,7 +243,7 @@ export default function AuthPage({ mode = "login", onSuccess }) {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-[#173b31]"
+                  className="absolute right-2 top-1/2 min-h-9 -translate-y-1/2 rounded-lg px-2 text-xs font-bold text-[#173b31] hover:bg-slate-100"
                 >
                   {showPassword ? "Ẩn" : "Hiện"}
                 </button>
@@ -254,7 +254,7 @@ export default function AuthPage({ mode = "login", onSuccess }) {
               <label className="flex items-start gap-3 text-xs leading-5 text-slate-500">
                 <input
                   type="checkbox"
-                  className="mt-1 accent-[#173b31]"
+                  className="mt-0.5 size-4 shrink-0 accent-[#173b31]"
                   required
                 />
                 Tôi đồng ý với Điều khoản sử dụng và Chính sách quyền riêng tư
@@ -265,7 +265,7 @@ export default function AuthPage({ mode = "login", onSuccess }) {
             {isLogin && (
               <div className="mt-4 flex items-center justify-between text-xs">
                 <label className="flex items-center gap-2 text-slate-500">
-                  <input type="checkbox" className="accent-[#173b31]" /> Ghi nhớ
+                  <input type="checkbox" className="size-4 accent-[#173b31]" /> Ghi nhớ
                   tôi
                 </label>
                 <Link to="/forgot-password" className="font-bold text-[#173b31] hover:underline">

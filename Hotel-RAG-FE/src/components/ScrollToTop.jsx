@@ -14,12 +14,13 @@ const TITLES = [
   [/^\/profile/, "Tài khoản của tôi"],
   [/^\/checkout/, "Thanh toán đặt phòng"],
   [/^\/payment/, "Kết quả thanh toán"],
-  [/^\/transfers\/checkout/, "Thanh toán xe đưa đón"],
+  [/^\/transfer-checkout/, "Thanh toán xe đưa đón"],
   [/^\/transfers/, "Xe đưa đón sân bay"],
   [/^\/partner-apply/, "Đăng ký đối tác khách sạn"],
   [/^\/transport-apply/, "Đăng ký nhà xe"],
   [/^\/partner/, "Trung tâm đối tác"],
   [/^\/transport/, "Trung tâm nhà xe"],
+  [/^\/admin\/rag/, "Phân tích RAG"],
   [/^\/admin/, "Trung tâm quản trị"],
 ];
 
