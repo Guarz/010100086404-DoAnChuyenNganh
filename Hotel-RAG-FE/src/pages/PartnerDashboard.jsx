@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import StatCard from "../components/StatCard";
 import Icon from "../components/Icon";
 import PartnerBookings from "../components/PartnerBookings";
+import StatsPanel from "../components/StatsPanel";
+import CouponManager from "../components/CouponManager";
 import AmenityPicker from "../components/AmenityPicker";
 import ProvinceSelect from "../components/ProvinceSelect";
 import HotelEditModal from "../components/partner/HotelEditModal";
@@ -562,6 +564,16 @@ export default function PartnerDashboard() {
 
         <div className="mt-8">
           <PartnerBookings onSummaryChange={setBookingSummary} />
+        </div>
+
+        {/* Doanh thu & tỷ lệ lấp phòng theo tháng */}
+        <div className="mt-8">
+          <StatsPanel scope="partner" />
+        </div>
+
+        {/* Mã giảm giá cho khách sạn của Partner */}
+        <div className="mt-8">
+          <CouponManager role="Partner" hotels={myHotels} />
         </div>
       </div>
 

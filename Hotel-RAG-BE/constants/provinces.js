@@ -35,7 +35,11 @@ const ALIASES = {
   'buon ma thuot': 'Đắk Lắk', 'dak lak': 'Đắk Lắk', 'dac lac': 'Đắk Lắk', 'dak nong': 'Đắk Nông',
   'tam dao': 'Vĩnh Phúc', 'con dao': 'Bà Rịa - Vũng Tàu', 'phong nha': 'Quảng Bình', 'dong hoi': 'Quảng Bình',
   'trang an': 'Ninh Bình', 'mai chau': 'Hòa Bình', 'moc chau': 'Sơn La', 'tuy hoa': 'Phú Yên', 'pleiku': 'Gia Lai',
-  'hoa binh': 'Hòa Bình', 'khanh hoa': 'Khánh Hòa', 'thanh hoa': 'Thanh Hóa'
+  'hoa binh': 'Hòa Bình', 'khanh hoa': 'Khánh Hòa', 'thanh hoa': 'Thanh Hóa',
+  // Sân bay -> tỉnh (khách hay hỏi xe theo tên sân bay)
+  'noi bai': 'Hà Nội', 'tan son nhat': 'Hồ Chí Minh', 'lien khuong': 'Lâm Đồng', 'phu bai': 'Thừa Thiên Huế',
+  'cat bi': 'Hải Phòng', 'van don': 'Quảng Ninh', 'phu cat': 'Bình Định', 'chu lai': 'Quảng Nam',
+  'long thanh': 'Đồng Nai', 'tho xuan': 'Thanh Hóa'
 };
 
 const LOOKUP = new Map([
@@ -60,4 +64,8 @@ const provinceSchemaType = ({ required = false } = {}) => ({
   }
 });
 
-module.exports = { VN_PROVINCES, normalizeProvince, isProvince, provinceSchemaType, foldVietnamese: fold };
+// Mọi cách viết (không dấu) -> tỉnh chuẩn, khóa dài trước để "ba ria vung tau" thắng "vung tau"
+// (chatbot dùng để nhận tỉnh/địa danh nằm giữa câu hỏi)
+const PROVINCE_KEYS = Object.freeze([...LOOKUP.entries()].sort((a, b) => b[0].length - a[0].length));
+
+module.exports = { VN_PROVINCES, PROVINCE_KEYS, normalizeProvince, isProvince, provinceSchemaType, foldVietnamese: fold };

@@ -4,6 +4,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Icon from "../components/Icon";
 import HotelReviews from "../components/HotelReviews";
 import HotelTransfers from "../components/HotelTransfers";
+import WishlistButton from "../components/WishlistButton";
 import PhotoGallery from "../components/PhotoGallery";
 import API from "../services/api";
 
@@ -168,9 +169,17 @@ export default function HotelDetail() {
                 <span className="text-stone-400">Nestly Tuyển chọn · Chưa có đánh giá</span>
               )}
             </div>
-            <h1 className="font-display mt-2 text-3xl font-semibold text-[#173b31] sm:text-5xl">
-              {hotel.hotelName}
-            </h1>
+            <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+              <h1 className="font-display text-3xl font-semibold text-[#173b31] sm:text-5xl">
+                {hotel.hotelName}
+              </h1>
+              <WishlistButton
+                hotelId={hotel._id}
+                hotelName={hotel.hotelName}
+                withLabel
+                className="shrink-0 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-bold text-[#173b31] hover:bg-stone-50"
+              />
+            </div>
             <p className="mt-3 flex items-start gap-2 text-sm text-stone-500">
               <Icon name="location" size={16} /> {hotel.address?.street},{" "}
               {hotel.address?.city}, {hotel.address?.province}

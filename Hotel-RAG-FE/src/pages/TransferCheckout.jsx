@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import API from "../services/api";
 import { TRANSFER_STATUS, formatPickup, formatVnd } from "../constants/transfer";
+import CouponBox from "../components/CouponBox";
+import PaymentButtons from "../components/PaymentButtons";
 
 export default function TransferCheckout() {
   const { id } = useParams();
@@ -38,17 +40,6 @@ export default function TransferCheckout() {
     return () => window.clearInterval(t);
   }, [booking, id]);
 
-  const pay = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await API.post("/payments/vnpay/create_url", { transferBookingId: booking._id });
-      window.location.href = r.data.paymentUrl;
-    } catch (e) {
-      setError(e.response?.data?.message || "Không thể khởi tạo thanh toán VNPay.");
-      setBusy(false);
-    }
-  };
 
   const cancel = async () => {
     if (!window.confirm("Hủy đơn đặt xe này?")) return;
@@ -114,16 +105,26 @@ export default function TransferCheckout() {
               {remaining !== null && ` (còn ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")})`}.
               Quá thời gian, đơn tự hủy và xe được mở bán lại.
             </p>
-            <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-5">
+              <CouponBox
+                kind="transfer"
+                orderId={booking._id}
+                order={booking}
+                onChange={(summary) => setBooking((b) => ({ ...b, ...summary }))}
+                disabled={busy || remaining === 0}
+              />
+            </div>
+            <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-sm font-semibold text-stone-500">Tổng thanh toán</p>
+                {booking.coupon?.code && (
+                  <p className="text-sm text-stone-400 line-through">{formatVnd(booking.subtotalAmount ?? booking.totalAmount)}</p>
+                )}
                 <p className="text-3xl font-extrabold text-[#b7812d]">{formatVnd(booking.totalAmount)}</p>
               </div>
-              <div className="flex gap-3">
-                <button onClick={cancel} disabled={busy} className="flex-1 rounded-2xl bg-stone-100 px-6 py-4 font-bold text-stone-600 hover:bg-stone-200 disabled:opacity-60 sm:flex-none">Hủy</button>
-                <button onClick={pay} disabled={busy || remaining === 0} className="flex-1 rounded-2xl bg-[#005BAA] px-6 py-4 font-bold text-white hover:bg-[#004785] disabled:opacity-60 sm:flex-none">
-                  {busy ? "Đang xử lý..." : "Thanh toán qua VNPay"}
-                </button>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button onClick={cancel} disabled={busy} className="rounded-2xl bg-stone-100 px-6 py-4 font-bold text-stone-600 hover:bg-stone-200 disabled:opacity-60">Hủy đơn</button>
+                <PaymentButtons body={{ transferBookingId: booking._id }} disabled={busy || remaining === 0} onError={setError} />
               </div>
             </div>
           </>

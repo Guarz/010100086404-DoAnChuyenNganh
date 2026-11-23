@@ -66,6 +66,8 @@ const loadRoomCatalog = async ({ withEmbedding = false } = {}) => {
 // (2) Lọc theo ràng buộc cứng — trả về danh sách {room, hotel, text} thỏa mãn
 const applyHardFilters = (catalog, c) => catalog.filter(({ room, hotel }) => {
   if (c.city && hotel.address?.city !== c.city) return false;
+  // Chỉ nêu tỉnh ("Lâm Đồng", "Vũng Tàu") -> lọc theo tỉnh của khách sạn
+  if (!c.city && c.province && hotel.address?.province !== c.province) return false;
   if (c.adults && room.maxAdults < c.adults) return false;
   if (c.children && (room.maxChildren || 0) < c.children) return false;
   if (c.rooms && room.totalQuantity < c.rooms) return false;

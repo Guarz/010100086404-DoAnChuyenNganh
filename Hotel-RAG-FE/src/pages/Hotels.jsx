@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Icon from "../components/Icon";
 import ProvinceSelect from "../components/ProvinceSelect";
+import WishlistButton from "../components/WishlistButton";
 import useProvinceCounts from "../hooks/useProvinceCounts";
 import { VN_PROVINCES } from "../constants/provinces";
 import API from "../services/api";
@@ -136,7 +137,7 @@ export default function Hotels() {
       {/* THANH TÌM KIẾM TRỰC TIẾP TRÊN TRANG HOTELS */}
       <section className="border-b border-stone-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-5 sm:py-6 lg:px-8">
-          <div className="relative grid gap-3 rounded-2xl border border-stone-200 p-3 shadow-sm md:grid-cols-2 lg:grid-cols-[1.5fr_2fr_1.5fr_auto]">
+          <div className="relative grid gap-3 rounded-2xl border border-stone-200 p-3 shadow-sm md:grid-cols-2 lg:grid-cols-[1.5fr_2fr_1.5fr_auto] [&>*]:min-w-0">
             {/* Điểm đến */}
             <label className="rounded-xl bg-stone-50 px-4 py-2 hover:bg-stone-100 cursor-pointer flex flex-col justify-center">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-stone-400">
@@ -164,7 +165,7 @@ export default function Hotels() {
                   onChange={(e) =>
                     setSearchData({ ...searchData, checkIn: e.target.value })
                   }
-                  className="w-full bg-transparent font-bold text-stone-800 outline-none text-sm cursor-pointer"
+                  className="min-w-0 w-full bg-transparent font-bold text-stone-800 outline-none text-sm cursor-pointer"
                 />
                 <span className="text-stone-300">-</span>
                 <input
@@ -173,7 +174,7 @@ export default function Hotels() {
                   onChange={(e) =>
                     setSearchData({ ...searchData, checkOut: e.target.value })
                   }
-                  className="w-full bg-transparent font-bold text-stone-800 outline-none text-sm cursor-pointer"
+                  className="min-w-0 w-full bg-transparent font-bold text-stone-800 outline-none text-sm cursor-pointer"
                 />
               </div>
             </div>
@@ -463,7 +464,7 @@ export default function Hotels() {
               sorted.map((hotel) => (
                 <article
                   key={hotel._id}
-                  className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                  className="relative overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
                 >
                   <button
                     onClick={() => navigate(`/hotels/${hotel._id}${location.search}`)}
@@ -533,6 +534,11 @@ export default function Hotels() {
                       </div>
                     </div>
                   </button>
+                  <WishlistButton
+                    hotelId={hotel._id}
+                    hotelName={hotel.hotelName}
+                    className="absolute right-4 top-4 size-10 rounded-full bg-white/90 text-[#173b31] shadow hover:bg-white"
+                  />
                 </article>
               ))
             )}

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Icon from "../components/Icon";
 import API from "../services/api";
 import ProvinceSelect from "../components/ProvinceSelect";
+import WishlistButton from "../components/WishlistButton";
 import useProvinceCounts from "../hooks/useProvinceCounts";
 
 const photos = {
@@ -371,8 +372,8 @@ export default function Home() {
         ) : (
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {featuredHotels.map((hotel) => (
+              <div key={hotel._id} className="relative min-w-0">
               <Link
-                key={hotel._id}
                 to={`/hotels/${hotel._id}`}
                 className="group block min-w-0 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
               >
@@ -410,6 +411,12 @@ export default function Home() {
                   </div>
                 </div>
               </Link>
+              <WishlistButton
+                hotelId={hotel._id}
+                hotelName={hotel.hotelName}
+                className="absolute left-5 top-5 size-9 rounded-full bg-white/90 text-[#173b31] shadow hover:bg-white"
+              />
+              </div>
             ))}
           </div>
         )}

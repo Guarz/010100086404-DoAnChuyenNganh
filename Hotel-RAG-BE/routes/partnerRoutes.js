@@ -30,6 +30,10 @@ const ownsRoomParam = requireRoomOwnership((req) => req.params.roomId);
 const ownsRoomBody = requireRoomOwnership((req) => req.body.roomTypeId);
 
 router.get('/application-status', authenticateUser, getApplicationStatus);
+
+// Thống kê doanh thu / tỷ lệ lấp phòng các khách sạn của Partner
+const { partnerStats } = require('../controllers/reportController');
+router.get('/stats', authenticateUser, authorizeRoles('Partner', 'Admin'), partnerStats);
 router.post('/apply', authenticateUser, applyForPartner);
 router.get('/applications/pending', authenticateUser, authorizeRoles('Admin'), getPendingPartnerApplications);
 router.put('/applications/:userId/:decision', authenticateUser, authorizeRoles('Admin'), reviewPartnerApplication);

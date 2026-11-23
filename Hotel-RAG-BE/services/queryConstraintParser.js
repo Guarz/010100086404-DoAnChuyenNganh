@@ -4,7 +4,12 @@
 // "view đẹp", "yên tĩnh"...) mới để cho Vector Search xếp hạng ngữ nghĩa.
 //
 // Dùng luật (rule-based) thay vì gọi LLM: kết quả tất định, kiểm thử được, không tốn quota,
-// và vẫn hoạt động khi Gemini lỗi / hết hạn mức.
+// và vẫn hoạt động khi LLM lỗi / chưa bật.
+//
+// Ngoài khách sạn, parser còn nhận:
+//  - TỈNH/THÀNH (63 tỉnh + địa danh: "Lâm Đồng", "Vũng Tàu", "Sa Pa"...) -> c.province
+//  - Ý ĐỊNH ĐẶT XE ĐƯA ĐÓN ("xe đưa đón sân bay", "thuê xe 7 chỗ ra sân bay"...) -> c.isTransferQuery
+const { PROVINCE_KEYS, normalizeProvince } = require('../constants/provinces');
 
 // Bỏ dấu tiếng Việt để so khớp không phụ thuộc cách gõ ("Đà Nẵng" ~ "da nang")
 const plain = (text) =>
@@ -55,6 +60,18 @@ const OFF_TOPIC = [
   /ignore (all|previous)/, /\bpython\b|\bjavascript\b|vong lap|\bcode\b/, /chinh tri/, /ve may bay/, /lap trinh boi ai/
 ];
 const HOTEL_INTENT = /phong|khach san|resort|homestay|villa|biet thu|suite|nghi duong|luu tru|dat cho|check.?in|o dau|gia|dem|view|bien|ho boi/;
+// Nhắc rõ tới chỗ ở (khác HOTEL_INTENT: không gồm "giá", "đêm"... vốn cũng có trong câu hỏi về xe)
+const HOTEL_EXPLICIT = /phong|khach san|resort|homestay|villa|biet thu|suite|nghi duong|luu tru|cho o|cho nghi/;
+// Ý định đặt xe đưa đón
+const TRANSFER_INTENT = new RegExp([
+  'xe dua don', 'dua don', 'xe don', 'don ([a-z]+ ){0,2}san bay', '(ra|toi|den|di|ve) san bay', 'tu san bay',
+  'xe (ra |tu |toi |den )?san bay', 'dat xe', 'thue xe', 'goi xe', 'taxi', 'limousine', 'shuttle', 'transfer',
+  'xe \d+ (cho|ghe)', 'xe (bon|bay|muoi sau) cho'
+].join('|'));
+// "khách sạn CÓ đưa đón sân bay" là tiện ích của khách sạn, không phải đặt xe riêng
+const TRANSFER_AS_AMENITY = /co (xe )?dua don|kem (xe )?dua don|bao gom (xe )?dua don|mien phi dua don/;
+const FROM_AIRPORT = /tu san bay|(?<!dua )don ([a-z]+ ){0,2}san bay|ha canh|xuong may bay/;
+const TO_AIRPORT = /(ra|toi|den|di) san bay|bay ve|kip chuyen bay/;
 
 const hasKey = (text, key) => new RegExp(`(^|[^a-z0-9])${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(text);
 
@@ -94,6 +111,7 @@ function parseQueryConstraints(query, now = new Date()) {
   const c = {
     city: null, checkIn: null, checkOut: null, adults: null, children: null, rooms: null,
     minPrice: null, maxPrice: null, amenities: [], roomKinds: [], sortByPrice: null,
+    province: null, isTransferQuery: false, transferDirection: null,
     offTopic: false, isHotelQuery: false
   };
 
@@ -101,6 +119,12 @@ function parseQueryConstraints(query, now = new Date()) {
 
   for (const [city, aliases] of CITY_ALIASES) {
     if (aliases.some((alias) => hasKey(text, alias))) { c.city = city; break; }
+  }
+  // Tỉnh/thành: suy từ thành phố đã nhận ("Đà Lạt" -> Lâm Đồng) hoặc tìm tên tỉnh / địa danh trong câu
+  c.province = c.city ? normalizeProvince(c.city) : null;
+  if (!c.province) {
+    const hit = PROVINCE_KEYS.find(([key]) => key.length > 2 && hasKey(text, key));
+    if (hit) c.province = hit[1];
   }
 
   // Số khách
@@ -150,14 +174,26 @@ function parseQueryConstraints(query, now = new Date()) {
   if (c.amenities.includes('Hồ bơi riêng')) c.amenities = c.amenities.filter((a) => a !== 'Hồ bơi');
   for (const k of ROOM_KINDS) if (k.keys.some((key) => hasKey(text, key))) c.roomKinds.push(k.label);
 
-  c.isHotelQuery = !c.offTopic && (
-    HOTEL_INTENT.test(text) || Boolean(c.city || c.checkIn || c.adults || c.maxPrice || c.amenities.length || c.roomKinds.length)
-  );
+  // Xe đưa đón: đặt xe riêng, hay chỉ là tiện ích "khách sạn có đưa đón"?
+  const hotelExplicit = HOTEL_EXPLICIT.test(text);
+  const wantsTransfer = TRANSFER_INTENT.test(text) && !(hotelExplicit && TRANSFER_AS_AMENITY.test(text));
+  if (wantsTransfer && !c.offTopic) {
+    c.isTransferQuery = true;
+    c.amenities = c.amenities.filter((a) => a !== 'Đưa đón sân bay');
+    if (FROM_AIRPORT.test(text)) c.transferDirection = 'fromAirport';
+    else if (TO_AIRPORT.test(text)) c.transferDirection = 'toAirport';
+  }
+
+  c.isHotelQuery = !c.offTopic && (wantsTransfer
+    // Câu hỏi về xe chỉ tìm thêm khách sạn khi khách nhắc rõ tới chỗ ở ("đặt phòng và xe đưa đón")
+    ? hotelExplicit
+    : HOTEL_INTENT.test(text) || Boolean(c.city || c.province || c.checkIn || c.adults || c.maxPrice ||
+      c.amenities.length || c.roomKinds.length));
   return c;
 }
 
 const hasHardConstraints = (c) => Boolean(
-  c.city || c.checkIn || c.adults || c.children || c.rooms || c.minPrice || c.maxPrice ||
+  c.city || c.province || c.checkIn || c.adults || c.children || c.rooms || c.minPrice || c.maxPrice ||
   c.amenities.length || c.roomKinds.length
 );
 

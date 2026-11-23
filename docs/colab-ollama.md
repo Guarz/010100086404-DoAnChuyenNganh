@@ -48,7 +48,7 @@ OLLAMA_API_KEY=<khoa-ngau-nhien>
 OLLAMA_TIMEOUT_MS=90000
 ```
 
-Giữ nguyên `GEMINI_API_KEY`, vì embedding vẫn dùng Gemini. Khởi động lại API (`npm run dev`), rồi hỏi trợ lý trên website. Response phải có `answerSource: "llm"` và `llmModel: "ollama:dolphin3"`.
+Ô 6 in thêm `OLLAMA_EMBED_MODEL=bge-m3`: notebook tải cả `bge-m3` (tạo vector tìm kiếm) và proxy cho phép `/api/embed`. Hệ thống không còn dùng Gemini. Lần đầu dùng `bge-m3` (hoặc sau khi đổi model) chạy `npm run seed:mock -- --embeddings` khi Colab đang chạy để tạo lại vector cho các khách sạn. Khởi động lại API (`npm run dev`), rồi hỏi trợ lý trên website. Response phải có `answerSource: "llm"` và `llmModel: "ollama:dolphin3"`.
 
 `OLLAMA_TIMEOUT_MS=90000` để thấp hơn giới hạn khoảng 100 giây cho mỗi request của tunnel Cloudflare miễn phí. Model 8B trên T4 thường trả lời nhanh hơn nhiều so với mức này.
 

@@ -6,20 +6,36 @@ import API from "../services/api"; // Import Axios instance vừa tạo
 
 const formatMoney = (n) => `${Math.round(n / 1000).toLocaleString("vi-VN")}k`;
 
-const describeConstraints = (c) =>
-  [
-    c.city,
-    c.checkIn && `${c.checkIn} → ${c.checkOut}`,
+const describeConstraints = (c) => {
+  const perNight = c.isHotelQuery ? "/đêm" : "";
+  return [
+    c.city || (c.province && `Tỉnh ${c.province}`),
+    c.isTransferQuery && "Xe đưa đón",
+    c.transferDirection === "fromAirport" && "Đón từ sân bay",
+    c.transferDirection === "toAirport" && "Ra sân bay",
+    c.checkIn && (c.isHotelQuery ? `${c.checkIn} → ${c.checkOut}` : `Ngày ${c.checkIn}`),
     c.adults && `${c.adults} người lớn`,
     c.children && `${c.children} trẻ em`,
     c.rooms && `${c.rooms} phòng`,
-    c.minPrice && `≥ ${formatMoney(c.minPrice)}/đêm`,
-    c.maxPrice && `≤ ${formatMoney(c.maxPrice)}/đêm`,
+    c.minPrice && `≥ ${formatMoney(c.minPrice)}${perNight}`,
+    c.maxPrice && `≤ ${formatMoney(c.maxPrice)}${perNight}`,
     ...(c.amenities || []),
     ...(c.roomKinds || []),
     c.sortByPrice === "asc" && "Giá thấp nhất",
     c.sortByPrice === "desc" && "Giá cao nhất",
   ].filter(Boolean);
+};
+
+// Link trang Xe đưa đón đã điền sẵn tỉnh / ngày / số khách mà chatbot hiểu được
+const transferSearchUrl = (c) => {
+  const params = new URLSearchParams();
+  if (c?.province) params.set("province", c.province);
+  if (c?.checkIn) params.set("date", c.checkIn);
+  const passengers = (c?.adults || 0) + (c?.children || 0);
+  if (passengers) params.set("passengers", String(passengers));
+  const qs = params.toString();
+  return `/transfers${qs ? `?${qs}` : ""}`;
+};
 
 export default function AIChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,7 +46,7 @@ export default function AIChatWidget() {
   const [messages, setMessages] = useState([
     { 
       sender: "ai", 
-      text: "Xin chào! Bạn đang muốn tìm một chỗ nghỉ ngơi như thế nào? (VD: Yên tĩnh, gần biển, phong cách cổ kính...)" 
+      text: "Xin chào! Bạn đang muốn tìm chỗ nghỉ như thế nào? (VD: yên tĩnh, gần biển, ở Lâm Đồng...). Mình cũng tìm được xe đưa đón, ví dụ: \"Xe đón sân bay Đà Nẵng ngày 20/12 cho 4 người\"." 
     }
   ]);
 
@@ -63,6 +79,7 @@ export default function AIChatWidget() {
       if (response.data.success) {
         const aiAnswer = response.data.answer;
         const recommendedRooms = response.data.rooms || [];
+        const recommendedTransfers = response.data.transfers || [];
 
         // 3. Thêm câu trả lời của AI vào giao diện (kèm ràng buộc hệ thống đã hiểu)
         setMessages((prev) => [
@@ -71,6 +88,7 @@ export default function AIChatWidget() {
             sender: "ai",
             text: aiAnswer,
             rooms: recommendedRooms,
+            transfers: recommendedTransfers,
             constraints: response.data.constraints,
           },
         ]);
@@ -96,7 +114,7 @@ export default function AIChatWidget() {
               <span className="grid size-8 place-items-center rounded-full bg-white/20"><Icon name="sparkle" size={16} /></span>
               <div>
                 <h3 className="font-bold">Trợ lý AI Nestly</h3>
-                <p className="text-[11px] text-white/70">Tìm khách sạn thông minh bằng RAG</p>
+                <p className="text-[11px] text-white/70">Tìm khách sạn và xe đưa đón bằng RAG</p>
               </div>
             </div>
             <button type="button" onClick={() => setIsOpen(false)} aria-label="Đóng trợ lý AI" className="grid size-9 place-items-center rounded-full hover:bg-white/20"><Icon name="x" size={18} /></button>
@@ -149,6 +167,40 @@ export default function AIChatWidget() {
                       ))}
                     </div>
                   )}
+
+                  {/* Xe đưa đón gợi ý, số [Xn] khớp trích dẫn trong câu trả lời */}
+                  {msg.transfers && msg.transfers.length > 0 && (
+                    <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
+                      <p className="text-xs font-bold text-[#b7812d]">Xe đưa đón còn đặt được:</p>
+                      {msg.transfers.map((t) => (
+                        <Link
+                          key={t.routeId}
+                          to={transferSearchUrl(msg.constraints)}
+                          onClick={() => setIsOpen(false)}
+                          className="block rounded-xl border border-stone-100 bg-stone-50 p-2.5 text-xs transition hover:border-[#173b31]/30"
+                        >
+                          <p className="font-bold text-[#173b31]">[{t.citation}] {t.vehicleName}{/chỗ|ghế/i.test(t.vehicleName) ? "" : ` · ${t.seats} chỗ`}</p>
+                          <p className="text-stone-600">{t.fromPlace} → {t.toPlace}</p>
+                          <p className="text-stone-500">
+                            {t.companyName} · {Math.round(t.totalPrice).toLocaleString("vi-VN")}đ
+                            {t.vehiclesNeeded > 1 ? ` (${t.vehiclesNeeded} xe)` : "/xe"}
+                            {t.availableVehicles !== null && ` · còn ${t.availableVehicles} xe`}
+                          </p>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Hỏi xe nhưng không có kết quả / chưa nêu tỉnh -> mở trang Xe đưa đón */}
+                  {msg.constraints?.isTransferQuery && !msg.transfers?.length && (
+                    <Link
+                      to={transferSearchUrl(msg.constraints)}
+                      onClick={() => setIsOpen(false)}
+                      className="mt-3 inline-flex items-center gap-1 rounded-full border border-[#173b31]/20 px-3 py-1.5 text-xs font-bold text-[#173b31] hover:bg-[#e8f2ed]"
+                    >
+                      Xem trang Xe đưa đón <Icon name="arrow" size={12} />
+                    </Link>
+                  )}
                 </div>
               </div>
             ))}
@@ -159,7 +211,7 @@ export default function AIChatWidget() {
                   <Icon name="sparkle" size={14} />
                 </div>
                 <div className="rounded-2xl rounded-tl-none bg-white p-3 text-sm text-stone-400 shadow-sm animate-pulse">
-                  Trợ lý đang tìm kiếm khách sạn phù hợp...
+                  Trợ lý đang tìm lựa chọn phù hợp...
                 </div>
               </div>
             )}

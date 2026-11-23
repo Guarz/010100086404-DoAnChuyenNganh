@@ -23,7 +23,7 @@ def start_auth_proxy(token, port=8000, upstream=OLLAMA_UPSTREAM):
             if self.headers.get('Authorization') != f'Bearer {token}':
                 return self._reply(401, b'{"error":"unauthorized"}')
             # Chỉ mở API cần thiết, không mở các API quản trị (pull/delete/create model...)
-            if self.path not in ('/api/chat', '/api/generate', '/api/tags'):
+            if self.path not in ('/api/chat', '/api/generate', '/api/embed', '/api/tags'):
                 return self._reply(404, b'{"error":"not found"}')
 
             length = int(self.headers.get('Content-Length') or 0)

@@ -2,7 +2,11 @@
 // Giữ / trả xe đưa đón — cùng cơ chế với services/inventoryService.js của khách sạn:
 // trừ nguyên tử theo điều kiện, hủy đơn bằng findOneAndUpdate để không hoàn quỹ 2 lần.
 const TransferBooking = require('../models/TransferBooking');
+const { releaseUse } = require('./couponService');
 const VehicleInventory = require('../models/VehicleInventory');
+const TransportCompany = require('../models/TransportCompany');
+const VehicleType = require('../models/VehicleType');
+const TransferRoute = require('../models/TransferRoute');
 
 const HOLD_MINUTES = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -62,6 +66,7 @@ exports.cancelPendingTransfer = async (filter) => {
   );
   if (!booking) return null;
   await exports.releaseVehicles(booking);
+  await releaseUse(booking.coupon?.couponId); // trả lượt mã giảm giá (nếu có)
   return booking;
 };
 
@@ -73,3 +78,47 @@ exports.parseVnDateTime = parseVnDateTime;
 exports.serviceDateOf = serviceDateOf;
 exports.parseDateKey = parseDateKey;
 exports.todayKey = todayKey;
+
+// Tuyến đang bán: nhà xe đã duyệt + loại xe đang hoạt động + tuyến đang hoạt động
+const activeRoutes = async (filter = {}) => {
+  const companies = await TransportCompany.find({ status: 'Approved' }).select('companyName phone').lean();
+  const vehicles = await VehicleType.find({ companyId: { $in: companies.map((c) => c._id) }, isActive: { $ne: false } }).lean();
+  const routes = await TransferRoute.find({ ...filter, isActive: { $ne: false }, vehicleTypeId: { $in: vehicles.map((v) => v._id) } }).lean();
+  const companyById = new Map(companies.map((c) => [c._id.toString(), c]));
+  const vehicleById = new Map(vehicles.map((v) => [v._id.toString(), v]));
+  return routes.map((r) => ({ route: r, vehicle: vehicleById.get(r.vehicleTypeId.toString()), company: companyById.get(r.companyId.toString()) }));
+};
+
+// Lựa chọn xe còn đặt được (rẻ nhất trước). Dùng chung cho trang Xe đưa đón và chatbot.
+//   province: tỉnh chuẩn (null = mọi tỉnh); date: mốc 00:00 UTC hoặc null (chưa chọn ngày -> không kiểm tra quỹ xe)
+const findTransferOptions = async ({ province = null, date = null, passengers = 1 } = {}) => {
+  const items = await activeRoutes(province ? { province } : {});
+  let inventory = new Map();
+  if (date) {
+    const invs = await VehicleInventory.find({ vehicleTypeId: { $in: items.map((i) => i.vehicle._id) }, date }).lean();
+    inventory = new Map(invs.map((inv) => [inv.vehicleTypeId.toString(), inv.availableVehicles]));
+  }
+  return items.map(({ route, vehicle, company }) => {
+    const vehiclesNeeded = Math.ceil(passengers / vehicle.seats); // nhiều khách hơn số chỗ -> đặt nhiều xe
+    const availableVehicles = date ? (inventory.get(vehicle._id.toString()) ?? 0) : null;
+    return {
+      routeId: route._id,
+      province: route.province,
+      fromPlace: route.fromPlace,
+      toPlace: route.toPlace,
+      durationMin: route.durationMin,
+      price: route.price,
+      vehiclesNeeded,
+      totalPrice: route.price * vehiclesNeeded,
+      availableVehicles,
+      bookable: availableVehicles === null ? true : availableVehicles >= vehiclesNeeded,
+      vehicle: { _id: vehicle._id, name: vehicle.name, seats: vehicle.seats, luggage: vehicle.luggage, amenities: vehicle.amenities, images: vehicle.images },
+      company: { _id: company._id, companyName: company.companyName }
+    };
+  })
+    .filter((x) => x.bookable)
+    .sort((a, b) => a.totalPrice - b.totalPrice);
+};
+
+exports.activeRoutes = activeRoutes;
+exports.findTransferOptions = findTransferOptions;

@@ -1,32 +1,22 @@
 // File: controllers/transferController.js
 // Phía KHÁCH HÀNG: tìm xe đưa đón, đặt xe (giữ xe 5 phút chờ thanh toán), xem / hủy đơn.
 const mongoose = require('mongoose');
+const notifications = require('../services/notificationService');
 const Hotel = require('../models/Hotel');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const TransportCompany = require('../models/TransportCompany');
 const VehicleType = require('../models/VehicleType');
 const TransferRoute = require('../models/TransferRoute');
-const VehicleInventory = require('../models/VehicleInventory');
 const TransferBooking = require('../models/TransferBooking');
 const {
-  reserveVehicles, cancelPendingTransfer,
+  reserveVehicles, cancelPendingTransfer, activeRoutes, findTransferOptions,
   parseVnDateTime, serviceDateOf, parseDateKey, HOLD_MINUTES, DAY_MS
 } = require('../services/transferService');
 
 const { VN_PROVINCES, normalizeProvince } = require('../constants/provinces');
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,100}$/;
-
-// Tuyến đang bán: nhà xe đã duyệt + loại xe đang hoạt động + tuyến đang hoạt động
-const activeRoutes = async (filter = {}) => {
-  const companies = await TransportCompany.find({ status: 'Approved' }).select('companyName phone').lean();
-  const vehicles = await VehicleType.find({ companyId: { $in: companies.map((c) => c._id) }, isActive: { $ne: false } }).lean();
-  const routes = await TransferRoute.find({ ...filter, isActive: { $ne: false }, vehicleTypeId: { $in: vehicles.map((v) => v._id) } }).lean();
-  const companyById = new Map(companies.map((c) => [c._id.toString(), c]));
-  const vehicleById = new Map(vehicles.map((v) => [v._id.toString(), v]));
-  return routes.map((r) => ({ route: r, vehicle: vehicleById.get(r.vehicleTypeId.toString()), company: companyById.get(r.companyId.toString()) }));
-};
 
 // [GET] /api/transfers/provinces - 63 tỉnh/thành (A→Z) kèm số tuyến xe đang bán
 exports.getProvinces = async (req, res) => {
@@ -56,33 +46,7 @@ exports.searchTransfers = async (req, res) => {
     const passengers = Math.max(parseInt(req.query.passengers, 10) || 1, 1);
     const date = parseDateKey(req.query.date);
 
-    const items = await activeRoutes(province ? { province } : {});
-    let inventory = new Map();
-    if (date) {
-      const invs = await VehicleInventory.find({ vehicleTypeId: { $in: items.map((i) => i.vehicle._id) }, date }).lean();
-      inventory = new Map(invs.map((inv) => [inv.vehicleTypeId.toString(), inv.availableVehicles]));
-    }
-
-    const data = items.map(({ route, vehicle, company }) => {
-      const vehiclesNeeded = Math.ceil(passengers / vehicle.seats); // nhiều khách hơn số chỗ -> đặt nhiều xe
-      const availableVehicles = date ? (inventory.get(vehicle._id.toString()) ?? 0) : null;
-      return {
-        routeId: route._id,
-        province: route.province,
-        fromPlace: route.fromPlace,
-        toPlace: route.toPlace,
-        durationMin: route.durationMin,
-        price: route.price,
-        vehiclesNeeded,
-        totalPrice: route.price * vehiclesNeeded,
-        availableVehicles,
-        bookable: availableVehicles === null ? true : availableVehicles >= vehiclesNeeded,
-        vehicle: { _id: vehicle._id, name: vehicle.name, seats: vehicle.seats, luggage: vehicle.luggage, amenities: vehicle.amenities, images: vehicle.images },
-        company: { _id: company._id, companyName: company.companyName }
-      };
-    })
-      .filter((x) => x.bookable)
-      .sort((a, b) => a.totalPrice - b.totalPrice);
+    const data = await findTransferOptions({ province, date, passengers });
 
     return res.status(200).json({ success: true, province: province || null, count: data.length, data });
   } catch (error) {
@@ -236,6 +200,7 @@ exports.cancelTransfer = async (req, res) => {
     if (booking.status !== 'Pending') return res.status(400).json({ success: false, message: 'Chỉ hủy được đơn chưa thanh toán' });
     const canceled = await cancelPendingTransfer({ _id: booking._id, customerId: req.user.id });
     if (!canceled) return res.status(409).json({ success: false, message: 'Đơn đã được xử lý trước đó' });
+    await notifications.notifyOrderCanceledByCustomer('transfer', canceled);
     return res.status(200).json({ success: true, message: 'Đã hủy đơn đặt xe' });
   } catch (error) {
     console.error('Lỗi hủy đơn đặt xe:', error);

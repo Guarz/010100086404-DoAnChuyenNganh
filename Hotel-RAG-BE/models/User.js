@@ -44,7 +44,9 @@ const userSchema = new mongoose.Schema({
     street: String,
     city: String,
     province: provinceSchemaType() // Không bắt buộc, nhưng nếu có phải thuộc 63 tỉnh/thành
-  }
+  },
+  // Danh sách khách sạn yêu thích (lưu để xem sau)
+  wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Hotel' }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

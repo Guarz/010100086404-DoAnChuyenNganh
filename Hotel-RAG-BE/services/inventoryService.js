@@ -1,6 +1,7 @@
 // File: services/inventoryService.js
 // Gom toàn bộ logic trừ / hoàn quỹ phòng vào một chỗ để Booking, Cronjob và VNPay dùng chung.
 const Booking = require('../models/Booking');
+const { releaseUse } = require('./couponService');
 const RoomInventory = require('../models/RoomInventory');
 
 const BOOKING_HOLD_MINUTES = 5;
@@ -62,6 +63,7 @@ exports.cancelPendingBooking = async (filter) => {
   if (!booking) return null;
 
   await exports.releaseInventory(booking);
+  await releaseUse(booking.coupon?.couponId); // trả lượt mã giảm giá (nếu có)
   return booking;
 };
 

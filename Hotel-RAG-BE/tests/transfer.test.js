@@ -192,7 +192,7 @@ describe('Thanh toán VNPay và đơn của nhà xe', () => {
 
     assert.equal((await api('POST', '/payments/vnpay/create_url', { token: customer.token, body: { transferBookingId: booking._id } })).status, 403);
 
-    const res = await api('GET', `/payments/vnpay/return?${sign({ vnp_TxnRef: booking._id, vnp_ResponseCode: '00', vnp_Amount: '100' })}`);
+    const res = await api('GET', `/payments/vnpay/return?${sign({ vnp_TxnRef: booking._id, vnp_ResponseCode: '00', vnp_Amount: String(booking.totalAmount * 100) })}`);
     assert.equal(res.status, 200);
     assert.equal(res.body.type, 'transfer');
     assert.equal((await TransferBooking.findById(booking._id)).status, 'Confirmed');

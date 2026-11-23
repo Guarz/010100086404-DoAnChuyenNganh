@@ -1,7 +1,7 @@
 // File: tests/rag-pipeline.test.js
 // Góp ý #4 — Hard constraints: ngày ở, số khách, ngân sách, tiện nghi bắt buộc được lọc có cấu trúc
 // TRƯỚC khi xếp hạng ngữ nghĩa -> không bao giờ gợi ý phòng hết chỗ / quá ngân sách.
-// Chạy không cần Gemini (GEMINI_API_KEY rỗng) để kiểm tra luôn nhánh fallback.
+// Chạy không cần Ollama (OLLAMA_URL trỏ tới cổng trống) để kiểm tra luôn nhánh fallback.
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { startTestServer, createUser, createHotelWithRoom, ymd } = require('./helpers');

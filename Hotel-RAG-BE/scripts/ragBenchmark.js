@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env'), quiet: true });
 const mongoose = require('mongoose');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { embedText, embedModelName } = require('../services/llmService');
 const { parseQueryConstraints } = require('../services/queryConstraintParser');
 const RoomType = require('../models/RoomType');
 const { loadRoomCatalog, keywordSearch, atlasVectorSearch, applyHardFilters, applyAvailabilityAndBudget, rankCandidates } =
@@ -26,7 +26,8 @@ const K = Number(args.k || 5);
 const CORPUS = args.corpus || 'frozen';
 const FROZEN_BEFORE = new Date('2026-10-31T00:00:00Z'); // ngày nạp dữ liệu mock (scripts/seedMockData.js)
 const ROOT = path.join(__dirname, '../..');
-const CACHE_FILE = path.join(__dirname, '.cache/query-embeddings.json');
+// Cache vector câu hỏi theo tên model (đổi model thì không dùng nhầm vector cũ)
+const CACHE_FILE = path.join(__dirname, `.cache/query-embeddings-${embedModelName().replace(/[^\w.-]/g, '_')}.json`);
 const golden = require(path.join(ROOT, 'golden_dataset.json'));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -34,12 +35,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function embedQueries(queries) {
   const cache = fs.existsSync(CACHE_FILE) ? JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')) : {};
   const missing = queries.filter((q) => !cache[q]);
-  if (missing.length && process.env.GEMINI_API_KEY) {
-    const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY).getGenerativeModel({ model: 'gemini-embedding-001' });
+  if (missing.length) {
     for (const q of missing) {
       for (let attempt = 0; attempt < 3 && !cache[q]; attempt++) {
         try {
-          cache[q] = (await model.embedContent(q)).embedding.values;
+          cache[q] = await embedText(q);
         } catch (error) {
           console.warn(`  ! Embedding lỗi (${error.status || error.message}) - thử lại`);
           await sleep(5000 * (attempt + 1));

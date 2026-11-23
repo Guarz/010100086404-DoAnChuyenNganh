@@ -1,7 +1,8 @@
 // File: src/components/Header.jsx
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import Icon from "./Icon"; // Hoặc "../common/Icon" tùy thư mục của bạn
+import Icon from "./Icon";
+import NotificationBell from "./NotificationBell";
 
 // Hàm hỗ trợ tạo Avatar từ Tên (Lấy 2 chữ cái đầu của 2 từ cuối)
 const getInitials = (name) => {
@@ -88,6 +89,7 @@ export default function Header({ loggedIn, onLogout }) {
             </NavLink>
           ))}
         </nav>
+        {loggedIn && <NotificationBell />}
         <div className="relative" ref={menuRef}>
           <button
             type="button"
