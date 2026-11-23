@@ -132,11 +132,11 @@ Mỗi document = **một hạng phòng trong một đêm**.
 |---|---|---|---|---|
 | `bookingId` | ObjectId → `bookings` | ✔ nếu không có `transferBookingId` | | Đơn phòng được thanh toán (một đơn có thể có nhiều lần thử) |
 | `transferBookingId` | ObjectId → `transferbookings` | | | Đơn xe đưa đón được thanh toán (dùng chung luồng VNPay; mỗi payment gắn đúng 1 trong 2 khóa) |
-| `paymentMethod` | String | ✔ | enum: `VNPay`, `Momo`, `Cash`, `Demo` | Cổng / hình thức thanh toán (`Demo` là thanh toán mô phỏng ở giai đoạn đầu) |
+| `paymentMethod` | String | ✔ | enum: `VNPay`, `Momo`, `Cash`, `Demo` | Cổng / hình thức thanh toán. Hiện chỉ dùng `VNPay`; `Demo` là thanh toán mô phỏng ở giai đoạn đầu; `Momo` giữ trong enum cho dữ liệu cũ (đã bỏ thanh toán MoMo) |
 | `amount` | Number | ✔ | | Số tiền (VNĐ) |
-| `paymentStatus` | String | | `Pending` · enum: `Pending`, `Success`, `Failed` | Kết quả; VNPay mã `00` / MoMo `resultCode` 0 **và số tiền khớp đơn** → `Success` (đơn chuyển `Confirmed`), ngược lại → `Failed` |
+| `paymentStatus` | String | | `Pending` · enum: `Pending`, `Success`, `Failed` | Kết quả; VNPay mã `00` **và số tiền khớp đơn** → `Success` (đơn chuyển `Confirmed`), ngược lại → `Failed` |
 | `paymentDate` | Date | | | Thời điểm thanh toán thành công |
-| `transactionId` | String | | | Mã giao dịch của cổng thanh toán (`vnp_TransactionNo` / `transId` MoMo) để đối soát |
+| `transactionId` | String | | | Mã giao dịch của cổng thanh toán (`vnp_TransactionNo` của VNPay) để đối soát |
 | `createdAt`, `updatedAt` | Date | | tự động | |
 
 ---

@@ -29,7 +29,7 @@ before(async () => {
     totalAmount: 1800000, subtotalAmount: 2000000, coupon: { code: 'GIAM200K', discountAmount: 200000 },
     bookingStatus: 'Confirmed', bookingDetails: [{ roomTypeId: room._id, quantity: 2, unitPrice: 500000, totalNights: 2 }]
   });
-  await Payment.create({ bookingId: paid._id, paymentMethod: 'Momo', amount: 1800000, paymentStatus: 'Success', paymentDate: new Date() });
+  await Payment.create({ bookingId: paid._id, paymentMethod: 'VNPay', amount: 1800000, paymentStatus: 'Success', paymentDate: new Date() });
   // KS của partner khác: không được tính vào thống kê của partner
   const other = await Booking.create({
     customerId: customer.user._id, hotelId: otherHotel._id, checkInDate: new Date(month.dayStart), checkOutDate: new Date(month.dayStart + DAY),
@@ -89,7 +89,7 @@ test('Xuất Excel: 3 sheet, đủ cột, có mã giảm giá và phương thứ
   const withCoupon = rows.find((r) => r[header.indexOf('Mã giảm giá')] === 'GIAM200K');
   assert.ok(withCoupon, 'có dòng đơn dùng mã giảm giá');
   assert.equal(withCoupon[header.indexOf('Thành tiền')], 1800000);
-  assert.equal(withCoupon[header.indexOf('Thanh toán')], 'Momo');
+  assert.equal(withCoupon[header.indexOf('Thanh toán')], 'VNPay');
   const monthly = wb.getWorksheet('Doanh thu theo tháng').getRow(2).values;
   assert.equal(monthly.at(-1), 2700000, 'tổng doanh thu tháng');
 });

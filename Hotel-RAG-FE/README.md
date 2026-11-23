@@ -23,8 +23,8 @@ React 19, React Router 7, Tailwind CSS 3, Axios. Biểu đồ tự vẽ bằng S
 | --- | --- |
 | `/`, `/hotels`, `/hotels/:id` | Trang chủ, danh sách / lọc khách sạn, chi tiết khách sạn |
 | `/transfers`, `/transfer-checkout/:id` | Tìm và thanh toán xe đưa đón (nhận `?province=&date=&passengers=`) |
-| `/checkout/:id` | Thanh toán đơn phòng (mã giảm giá, VNPay / MoMo) |
-| `/payment/vnpay-return`, `/payment/momo-return` | Kết quả thanh toán |
+| `/checkout/:id` | Thanh toán đơn phòng (mã giảm giá, VNPay) |
+| `/payment/vnpay-return` | Kết quả thanh toán VNPay |
 | `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password` | Tài khoản |
 | `/profile` | Hồ sơ, lịch sử đặt chỗ, yêu thích (`?tab=`) |
 | `/partner-apply`, `/partner` | Đăng ký / trung tâm đối tác (khách sạn, mã giảm giá, thống kê) |
@@ -36,6 +36,6 @@ React 19, React Router 7, Tailwind CSS 3, Axios. Biểu đồ tự vẽ bằng S
 - `components/AIChatWidget.jsx`: khung chat trợ lý AI; hiện nhãn ràng buộc đã hiểu, thẻ phòng `[n]` và thẻ xe đưa đón `[Xn]`.
 - `components/NotificationBell.jsx`: chuông thông báo (cập nhật mỗi 60 giây).
 - `components/WishlistButton.jsx`, `hooks/useWishlist.js`: danh sách yêu thích dùng chung mọi trang.
-- `components/CouponBox.jsx`, `components/PaymentButtons.jsx`: áp mã giảm giá, chọn VNPay / MoMo.
+- `components/CouponBox.jsx`, `components/PaymentButtons.jsx`: áp mã giảm giá, nút thanh toán VNPay.
 - `components/StatsPanel.jsx`: biểu đồ doanh thu, tỷ lệ lấp phòng, xuất báo cáo (Admin).
 - `constants/provinces.js`: 63 tỉnh/thành, phải giống hệt bản ở backend (có test kiểm tra).

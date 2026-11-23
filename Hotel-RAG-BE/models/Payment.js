@@ -20,7 +20,7 @@ const paymentSchema = new mongoose.Schema({
     default: 'Pending'
   },
   paymentDate: { type: Date }, // Cập nhật khi cổng thanh toán trả về Success
-  transactionId: { type: String } // Mã giao dịch của cổng thanh toán (vnp_TransactionNo / transId MoMo) để đối soát
+  transactionId: { type: String } // Mã giao dịch của cổng thanh toán (vnp_TransactionNo của VNPay) để đối soát
 }, { timestamps: true });
 
 module.exports = mongoose.model('Payment', paymentSchema);
