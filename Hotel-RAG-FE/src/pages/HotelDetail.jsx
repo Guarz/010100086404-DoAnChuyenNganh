@@ -150,7 +150,7 @@ export default function HotelDetail() {
       <div className="mx-auto max-w-7xl px-5 pb-24 pt-8 lg:px-8">
         <button
           onClick={() => navigate(-1)} // Quay lại trang trước kèm bộ lọc URL
-          className="mb-7 flex items-center gap-2 text-sm font-bold text-stone-500 transition hover:text-[#173b31]"
+          className="mb-5 -ml-2 flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-bold text-stone-500 transition hover:text-[#173b31]"
         >
           ← Quay lại
         </button>

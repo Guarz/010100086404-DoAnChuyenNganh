@@ -72,7 +72,7 @@ export default function ResetPassword() {
               type="button"
               onClick={() => setShow(!show)}
               aria-label={show ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-              className="absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-xs font-bold text-[#173b31]"
+              className="absolute right-2 top-1/2 mt-1 min-h-9 -translate-y-1/2 rounded-lg px-2 text-xs font-bold text-[#173b31] hover:bg-slate-100"
             >
               {show ? "Ẩn" : "Hiện"}
             </button>

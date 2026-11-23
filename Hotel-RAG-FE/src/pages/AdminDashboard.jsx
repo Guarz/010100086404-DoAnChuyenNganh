@@ -675,7 +675,7 @@ export default function AdminDashboard() {
                         <h3 className="font-bold text-stone-900">
                           {partner.fullName}
                         </h3>
-                        <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-extrabold text-amber-700">
+                        <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-extrabold text-amber-700">
                           CHỜ DUYỆT
                         </span>
                       </div>

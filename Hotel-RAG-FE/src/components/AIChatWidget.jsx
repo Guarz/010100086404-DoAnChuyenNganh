@@ -140,7 +140,7 @@ export default function AIChatWidget() {
                   {msg.constraints && describeConstraints(msg.constraints).length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {describeConstraints(msg.constraints).map((label) => (
-                        <span key={label} className="rounded-full bg-[#e8f2ed] px-2 py-0.5 text-[10px] font-bold text-[#173b31]">
+                        <span key={label} className="rounded-full bg-[#e8f2ed] px-2 py-0.5 text-[11px] font-bold text-[#173b31]">
                           {label}
                         </span>
                       ))}

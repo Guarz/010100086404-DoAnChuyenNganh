@@ -986,6 +986,56 @@
 
 ---
 
+## [24/11/2026] Rà soát giao diện toàn bộ trang (UI/UX)
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Cách rà:**
+- Quét tự động 24 trang / tab ở 375px và 1280px, đăng nhập lần lượt 4 vai trò (khách, đối tác, nhà xe, admin).
+- Mục kiểm tra: tràn ngang, ảnh thiếu alt, nút / link thiếu tên, ô nhập thiếu nhãn, chữ dưới 11px, vùng bấm dưới 24px, tiêu đề tab.
+- Xem thêm ảnh chụp các trang chính.
+- Chạy trên bản sao dữ liệu Atlas ở DB local (chỉ đọc Atlas); xóa DB tạm sau khi xong.
+
+**Kết quả:**
+- Không trang nào tràn ngang; ảnh đều có alt; nút và link đều có tên.
+- Không phát hiện lỗi bố cục.
+
+**Đã sửa:**
+- Tiêu đề tab trang thanh toán xe chỉ hiện "Nestly" (regex `/transfers/checkout` không khớp route `/transfer-checkout`). Trang `/admin/rag` có tiêu đề riêng "Phân tích RAG" (`ScrollToTop.jsx`).
+- 2 ô ngày nhận / trả phòng ở trang Khách sạn thiếu nhãn cho trình đọc màn hình (`Hotels.jsx`).
+- Vùng bấm quá nhỏ:
+  - Nút "Hiện / Ẩn" mật khẩu: 27×16px, nay cao 36px (`AuthPage.jsx`, `ResetPassword.jsx`).
+  - Các link "← Về trang chủ", "← Quay lại", "← Về đăng nhập": nay cao 40px (`AuthPage.jsx`, `HotelDetail.jsx`, `AuthCard.jsx`).
+  - Ô chọn tỉnh ở trang chủ và trang Khách sạn: 22px, nay 32px (`Home.jsx`, `Hotels.jsx`).
+  - Link chân trang, ô tick: link chân trang nay ≥ 24px, ô tick 16px (`Footer.tsx`, `AuthPage.jsx`).
+- Nhãn trạng thái 10px nâng lên 11px: "CHỜ DUYỆT", nhãn chatbot, loại thông báo, "BẢO TRÌ".
+
+**Kiểm chứng:** quét lại sau khi sửa không còn lỗi trên (link nằm trong câu chữ như "Quên mật khẩu?" thuộc ngoại lệ của WCAG 2.5.8). ESLint 0 lỗi, `vite build` thành công.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
+## [24/11/2026] Thử thanh toán trên Render; MoMo bị từ chối khi gọi từ máy chủ Render
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Đã deploy:** merge `d92a5c6` vào `main` (`fffa734`); Render build lại backend + frontend. Trên domain thật chatbot trả được xe đưa đón.
+
+**Thử trên domain thật (nestly-web-6mho.onrender.com):**
+- **VNPay:** đơn thử #6FC392 (850.000₫) mở được cổng VNPay sandbox, không còn lỗi "quá thời gian chờ". Thanh toán bằng thẻ test NCB xong thì đơn chuyển "Đã thanh toán" và có thông báo "Đặt phòng thành công".
+- **MoMo:** API trả 502 "MoMo từ chối tạo giao dịch: không rõ lý do".
+  - Gửi đúng yêu cầu đó (cùng khóa test, cùng redirectUrl / ipnUrl của Render) từ máy ở Việt Nam thì MoMo trả `resultCode 0` kèm link thanh toán.
+  - Nhận định: MoMo sandbox từ chối yêu cầu đến từ IP máy chủ Render ở nước ngoài, nhiều khả năng bằng trang không phải JSON. Chưa xác nhận vì chưa xem được log Render.
+
+**Sửa:** `controllers/paymentController.js` đọc phản hồi MoMo dạng text trước khi parse. Khi không phải JSON thì log mã HTTP + đoạn nội dung, và báo rõ "MoMo trả HTTP …, không phải dữ liệu JSON (có thể máy chủ bị MoMo chặn theo vùng)"; có JSON thì kèm `resultCode`. Test `momo-notification` 5/5.
+
+**Việc còn lại:** deploy bản sửa rồi thử lại MoMo trên Render để đọc đúng lý do. Nếu đúng là chặn theo vùng: đổi region Render sang Singapore (phải tạo lại service), hoặc demo MoMo khi chạy backend trên máy.
+
+**Tiến độ:** VNPay xong; MoMo trên Render chưa chạy được. Chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 

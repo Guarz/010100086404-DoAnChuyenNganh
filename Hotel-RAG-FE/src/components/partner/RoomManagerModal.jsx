@@ -153,7 +153,7 @@ export default function RoomManagerModal({ hotel, onClose }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-bold text-[#173b31]">{room.title}</h3>
                   {room.isActive === false && (
-                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">BẢO TRÌ</span>
+                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-700">BẢO TRÌ</span>
                   )}
                 </div>
                 <p className="mt-1 text-sm text-stone-500">

@@ -137,7 +137,7 @@ export default function NotificationBell() {
                     <span className="min-w-0 flex-1">
                       <span className="flex items-start justify-between gap-2">
                         <span className="text-sm font-bold text-slate-900">{n.title}</span>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${TYPE_STYLE[n.type] || "bg-slate-100 text-slate-600"}`}>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${TYPE_STYLE[n.type] || "bg-slate-100 text-slate-600"}`}>
                           {timeAgo(n.createdAt)}
                         </span>
                       </span>

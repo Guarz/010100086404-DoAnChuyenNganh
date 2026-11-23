@@ -264,10 +264,16 @@ exports.createMoMoUrl = async (req, res) => {
         signature: momoSign(raw, cfg.secretKey)
       })
     });
-    const data = await response.json().catch(() => ({}));
+    // Đọc dạng text trước: khi MoMo chặn yêu cầu (vd. IP máy chủ ở nước ngoài) có thể trả HTML thay vì JSON
+    const text = await response.text();
+    let data = {};
+    try { data = JSON.parse(text); } catch { /* không phải JSON */ }
     if (data.resultCode !== 0 || !data.payUrl) {
-      console.error('MoMo từ chối tạo giao dịch:', data.resultCode, data.message);
-      return res.status(502).json({ success: false, message: `MoMo từ chối tạo giao dịch: ${data.message || 'không rõ lý do'}` });
+      console.error('MoMo từ chối tạo giao dịch:', response.status, data.resultCode, data.message || text.slice(0, 300));
+      const reason = data.message
+        ? `${data.message} (mã ${data.resultCode})`
+        : `MoMo trả HTTP ${response.status}, không phải dữ liệu JSON (có thể máy chủ bị MoMo chặn theo vùng)`;
+      return res.status(502).json({ success: false, message: `MoMo từ chối tạo giao dịch: ${reason}` });
     }
     return res.status(200).json({ success: true, paymentUrl: data.payUrl });
   } catch (error) {

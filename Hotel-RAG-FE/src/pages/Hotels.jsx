@@ -149,7 +149,7 @@ export default function Hotels() {
                 counts={provinceCounts}
                 countUnit=" KS"
                 placeholder="Tất cả tỉnh/thành"
-                className="mt-1 w-full cursor-pointer bg-transparent font-bold text-stone-800 outline-none"
+                className="mt-1 min-h-8 w-full cursor-pointer bg-transparent font-bold text-stone-800 outline-none"
               />
             </label>
 
@@ -161,6 +161,7 @@ export default function Hotels() {
               <div className="flex items-center gap-2 mt-1">
                 <input
                   type="date"
+                  aria-label="Ngày nhận phòng"
                   value={searchData.checkIn}
                   onChange={(e) =>
                     setSearchData({ ...searchData, checkIn: e.target.value })
@@ -170,6 +171,7 @@ export default function Hotels() {
                 <span className="text-stone-300">-</span>
                 <input
                   type="date"
+                  aria-label="Ngày trả phòng"
                   value={searchData.checkOut}
                   onChange={(e) =>
                     setSearchData({ ...searchData, checkOut: e.target.value })
