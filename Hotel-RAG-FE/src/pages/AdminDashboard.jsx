@@ -5,6 +5,8 @@ import Icon from "../components/Icon"; // Hoặc "../components/Icon"
 import StatCard from "../components/StatCard";
 import API from "../services/api";
 import TransportCompaniesPanel from "../components/admin/TransportCompaniesPanel";
+import StatsPanel from "../components/StatsPanel";
+import CouponManager from "../components/CouponManager";
 
 const HOTEL_FILTERS = [
   { value: "Pending", label: "Chờ duyệt" },
@@ -14,7 +16,7 @@ const HOTEL_FILTERS = [
 ];
 
 // Các tab của trang quản trị (lưu trên URL ?tab=... để F5 / gửi link vẫn mở đúng tab)
-const TABS = ["hotels", "partners", "users", "transport"];
+const TABS = ["hotels", "partners", "users", "transport", "stats", "coupons"];
 
 // Ảnh Unsplash: lấy bản nhỏ cho ô thu nhỏ thay vì bản 1200px
 const thumb = (url, width = 240) =>
@@ -409,7 +411,36 @@ export default function AdminDashboard() {
               {transportPending}
             </span>
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "stats"}
+            onClick={() => setTab("stats")}
+            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold transition sm:px-5 ${
+              tab === "stats"
+                ? "bg-white text-[#173b31] shadow-sm"
+                : "text-stone-500"
+            }`}
+          >
+            Thống kê & báo cáo
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "coupons"}
+            onClick={() => setTab("coupons")}
+            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold transition sm:px-5 ${
+              tab === "coupons"
+                ? "bg-white text-[#173b31] shadow-sm"
+                : "text-stone-500"
+            }`}
+          >
+            Mã giảm giá
+          </button>
         </div>
+
+        {tab === "stats" && <StatsPanel scope="admin" />}
+        {tab === "coupons" && <CouponManager role="Admin" />}
 
         {tab === "transport" && (
           <TransportCompaniesPanel onSummary={(s) => setTransportPending(s?.Pending || 0)} />

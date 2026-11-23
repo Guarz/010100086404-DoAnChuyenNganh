@@ -11,4 +11,9 @@ router.post('/', authenticateUser, c.createTransfer);
 router.get('/:id', authenticateUser, c.getTransferById);
 router.put('/:id/cancel', authenticateUser, c.cancelTransfer);
 
+// Mã giảm giá cho đơn xe đang chờ thanh toán
+const { applyCoupon, removeCoupon } = require('../controllers/couponController');
+router.put('/:id/coupon', authenticateUser, applyCoupon('transfer'));
+router.delete('/:id/coupon', authenticateUser, removeCoupon('transfer'));
+
 module.exports = router;

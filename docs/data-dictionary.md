@@ -27,6 +27,7 @@ Quy ước:
 | `lastVerifyMailAt`, `lastResetMailAt` | Date | | ẩn | Lần gửi email gần nhất theo từng loại, chặn gửi lại trong 60 giây |
 | `address.street` / `.city` | String | | | Số nhà, đường / quận-huyện (object nhúng) |
 | `address.province` | String | | 1 trong 63 tỉnh/thành ([danh mục](#danh-muc-63-tinh)) | Tỉnh/TP của người dùng; giá trị khác bị từ chối (400) |
+| `wishlist` | [ObjectId → `hotels`] | | tối đa 200 | Khách sạn yêu thích (khách sạn ngừng duyệt tự ẩn khỏi danh sách) |
 | `createdAt`, `updatedAt` | Date | | tự động | |
 
 **Index:** `username` (unique, sparse), `email` (thường).
@@ -50,13 +51,13 @@ Quy ước:
 | `reviewCount` | Number | | `0` | Số lượt đánh giá; dùng làm trọng số khi hiển thị/xếp hạng |
 | `amenities` | [String] | | | Tiện nghi cấp khách sạn (hồ bơi, spa…); được chuẩn hóa: bỏ trùng, tối đa 30 mục |
 | `images` | [String] | | | URL ảnh (chỉ http/https, tối đa 20) |
-| `embedding` | [Number] | | | Vector 3072 chiều (Gemini `gemini-embedding-001`) của tên + mô tả + tiện nghi + địa chỉ; dùng cho xếp hạng ngữ nghĩa; không trả về qua API |
+| `embedding` | [Number] | | | Vector 1024 chiều (model `bge-m3` chạy bằng Ollama) của tên + mô tả + tiện nghi + địa chỉ; dùng cho xếp hạng ngữ nghĩa; không trả về qua API |
 | `status` | String | | `Pending` · enum: `Pending`, `Approved`, `Rejected` | Chỉ khách sạn `Approved` hiển thị cho khách; Partner sửa KS bị từ chối thì tự quay về `Pending` |
 | `rejectionReason` | String | | | Lý do Admin từ chối |
 | `reviewedAt` | Date | | | Thời điểm Admin duyệt hoặc từ chối |
 | `createdAt`, `updatedAt` | Date | | tự động | |
 
-**Index:** `coordinates` (2dsphere); Atlas Search index `default` trên `embedding` (knnVector 3072, cosine).
+**Index:** `coordinates` (2dsphere). Xếp hạng ngữ nghĩa tính cosine trong ứng dụng; Atlas Search index `default` trên `embedding` chỉ dùng cho baseline của benchmark (đổi model thì sửa `dimensions` thành 1024).
 
 ---
 
@@ -103,7 +104,9 @@ Mỗi document = **một hạng phòng trong một đêm**.
 | `checkInDate` | Date | ✔ | | Ngày nhận phòng (00:00 giờ Việt Nam) |
 | `checkOutDate` | Date | ✔ | sau `checkInDate` | Ngày trả phòng |
 | `expiresAt` | Date | | tạo đơn + 5 phút | Hạn giữ chỗ khi `Pending`; cronjob hủy đơn quá hạn và hoàn quỹ phòng; xóa khi đã thanh toán |
-| `totalAmount` | Number | ✔ | | Tổng tiền = Σ(giá từng đêm × số phòng) |
+| `totalAmount` | Number | ✔ | | Số tiền phải trả = tạm tính − giảm giá |
+| `subtotalAmount` | Number | | | Tạm tính trước giảm giá = Σ(giá từng đêm × số phòng); có khi đơn đã từng áp mã |
+| `coupon.couponId` / `.code` / `.discountAmount` | ObjectId → `coupons`, String, Number | | | Mã giảm giá đang áp cho đơn (giữ 1 lượt dùng; trả lại khi đơn hủy / hết hạn / bỏ mã) |
 | `specialRequests` | String | | | Yêu cầu đặc biệt của khách (tầng cao, giường phụ…) |
 | `idempotencyKey` | String | | 8–100 ký tự | Khóa chống đặt trùng do frontend sinh; gửi lại cùng khóa → trả đơn cũ, không trừ quỹ lần 2 |
 | `bookingStatus` | String | | `Pending` · enum: `Pending`, `Confirmed`, `Canceled`, `Completed` | `Pending` chờ thanh toán → `Confirmed` đã thanh toán → `Completed` đã trả phòng (mới được đánh giá); `Canceled` = hủy / hết hạn |
@@ -131,8 +134,9 @@ Mỗi document = **một hạng phòng trong một đêm**.
 | `transferBookingId` | ObjectId → `transferbookings` | | | Đơn xe đưa đón được thanh toán (dùng chung luồng VNPay; mỗi payment gắn đúng 1 trong 2 khóa) |
 | `paymentMethod` | String | ✔ | enum: `VNPay`, `Momo`, `Cash`, `Demo` | Cổng / hình thức thanh toán (`Demo` là thanh toán mô phỏng ở giai đoạn đầu) |
 | `amount` | Number | ✔ | | Số tiền (VNĐ) |
-| `paymentStatus` | String | | `Pending` · enum: `Pending`, `Success`, `Failed` | Kết quả; VNPay trả mã `00` → `Success` (đơn chuyển `Confirmed`), mã khác → `Failed` |
+| `paymentStatus` | String | | `Pending` · enum: `Pending`, `Success`, `Failed` | Kết quả; VNPay mã `00` / MoMo `resultCode` 0 **và số tiền khớp đơn** → `Success` (đơn chuyển `Confirmed`), ngược lại → `Failed` |
 | `paymentDate` | Date | | | Thời điểm thanh toán thành công |
+| `transactionId` | String | | | Mã giao dịch của cổng thanh toán (`vnp_TransactionNo` / `transId` MoMo) để đối soát |
 | `createdAt`, `updatedAt` | Date | | tự động | |
 
 ---
@@ -159,14 +163,15 @@ Mỗi document = **một câu hỏi** gửi tới `POST /api/ai/search`; dùng �
 | Trường | Kiểu | Bắt buộc | Mặc định | Ý nghĩa |
 |---|---|---|---|---|
 | `userQuery` | String | ✔ | | Câu hỏi của khách |
-| `constraints` | Mixed (object) | | | Ràng buộc cứng tách được: `city`, `checkIn`, `checkOut`, `adults`, `children`, `rooms`, `minPrice`, `maxPrice`, `amenities`, `roomKinds`, `sortByPrice`, `offTopic`, `isHotelQuery` |
+| `constraints` | Mixed (object) | | | Ràng buộc cứng tách được: `city`, `province` (tỉnh, kể cả suy từ địa danh / tên sân bay), `checkIn`, `checkOut`, `adults`, `children`, `rooms`, `minPrice`, `maxPrice`, `amenities`, `roomKinds`, `sortByPrice`, `offTopic`, `isHotelQuery`, `isTransferQuery` (có hỏi xe đưa đón), `transferDirection` (`fromAirport` / `toAirport` / null) |
 | `retrievedHotelIds` | [ObjectId → `hotels`] | | | Khách sạn chứa các phòng được truy xuất |
 | `retrievedContextIds` | [ObjectId → `roomtypes`] | | | Hạng phòng được truy xuất, **theo thứ tự xếp hạng** (dùng tính HitRate, Recall@K, Precision@K, nDCG@K, MRR) |
+| `retrievedTransferRouteIds` | [ObjectId → `transferroutes`] | | | Tuyến xe đưa đón chatbot đã gợi ý (trích dẫn `[X1]`, `[X2]`...); rỗng nếu câu hỏi không hỏi xe |
 | `goldenContextIds` | [ObjectId → `roomtypes`] | | | Nhãn đáp án chuẩn từ `golden_dataset.json` (gắn bằng `npm run rag:replay`) |
 | `llmResponse` | String | ✔ | | Câu trả lời gửi cho khách |
 | `answerSource` | String | | enum: `llm`, `template`, `guardrail` | `llm` = model sinh; `template` = model lỗi, trả lời dựng từ dữ liệu; `guardrail` = câu ngoài phạm vi bị từ chối |
-| `llmModel` | String | | | Model đã trả lời, dạng `provider:model` (vd. `ollama:dolphin3`, `gemini:gemini-3.8-flash`) |
-| `pipelineStats` | Mixed (object) | | | Số ứng viên qua từng bước: `catalog` → `afterHardFilters` → `afterAvailability`, và `semanticRanking` (có dùng vector không) |
+| `llmModel` | String | | | Model đã trả lời, dạng `provider:model` (vd. `ollama:dolphin3`; log cũ trước 23/11/2026 có thể là `gemini:...`) |
+| `pipelineStats` | Mixed (object) | | | Số ứng viên qua từng bước: `catalog` → `afterHardFilters` → `afterAvailability`, `semanticRanking` (có dùng vector không), `transferResults` (số tuyến xe gợi ý) |
 | `latencyMs` | Number | | | Thời gian xử lý (ms) |
 | `metrics.hitRate` / `.recall` / `.precision` | Number | | null | Chỉ số truy xuất (dự phòng; trang Analytics tính trực tiếp từ các trường ID ở trên) |
 | `metrics.groundedness` | Number | | null | 1 = câu trả lời bám sát ngữ cảnh, 0 = có bịa (chấm bằng LLM-as-judge ở Admin → RAG Analytics) |
@@ -252,12 +257,54 @@ Mỗi document = **một câu hỏi** gửi tới `POST /api/ai/search`; dùng �
 | `contactPhone` | String | ✔ | `^0\d{9,10}$` | SĐT để tài xế liên hệ |
 | `note` | String | | ≤ 500 ký tự | Ghi chú cho tài xế |
 | `unitPrice` | Number | ✔ | | Giá tuyến tại thời điểm đặt |
-| `totalAmount` | Number | ✔ | | `unitPrice × vehicles` |
+| `totalAmount` | Number | ✔ | | Số tiền phải trả = `unitPrice × vehicles` − giảm giá |
+| `subtotalAmount`, `coupon` | | | | Giống `bookings`: tạm tính và mã giảm giá đang áp |
 | `status` | String | | `Pending` · enum: `Pending`, `Confirmed`, `Canceled`, `Completed` | Vòng đời: giữ xe → thanh toán VNPay → nhà xe xác nhận đã đón (hoặc cronjob tự `Completed` sau ngày đón) |
 | `expiresAt` | Date | | | Hạn giữ xe 5 phút; cronjob hủy và trả xe khi quá hạn |
 | `idempotencyKey` | String | | | Khóa chống gửi trùng (header `Idempotency-Key`) |
 
 **Index:** `{ status, expiresAt }`, `{ companyId, pickupTime }`, `{ customerId, idempotencyKey }` **unique** (partial).
+
+---
+
+## 14. `coupons` — Mã giảm giá
+
+| Trường | Kiểu | Bắt buộc | Mặc định / Ràng buộc | Ý nghĩa |
+|---|---|---|---|---|
+| `code` | String | ✔ | **unique**, chữ hoa, `^[A-Z0-9_-]{3,30}$` | Mã khách nhập |
+| `description` | String | | ≤ 200 ký tự | Mô tả ưu đãi |
+| `discountType` | String | ✔ | enum: `percent`, `amount` | Giảm theo % hoặc số tiền cố định |
+| `value` | Number | ✔ | % 1–100 hoặc ≥ 1.000₫ | Mức giảm |
+| `maxDiscount` | Number | | | Giảm tối đa (mã %) |
+| `minOrderAmount` | Number | | `0` | Giá trị đơn tối thiểu |
+| `appliesTo` | String | | `hotel` · enum: `hotel`, `transfer`, `all` | Loại đơn áp dụng (mã của Partner luôn là `hotel`) |
+| `hotelId` | ObjectId → `hotels` | | | Mã của Partner chỉ dùng cho khách sạn này; không có = mã toàn sàn |
+| `createdBy`, `ownerRole` | ObjectId → `users`, String | ✔ | `ownerRole`: `Admin` / `Partner` | Người tạo; Partner chỉ thấy / sửa mã của mình |
+| `startsAt`, `expiresAt` | Date | | | Thời gian hiệu lực |
+| `usageLimit`, `usedCount` | Number | | `usedCount` 0 | Tổng lượt dùng / đã dùng (tăng nguyên tử khi áp mã, giảm khi đơn hủy / bỏ mã) |
+| `perUserLimit` | Number | | `1` | Số đơn (chưa hủy) mỗi khách được dùng mã |
+| `isActive` | Boolean | | `true` | Tắt mã mà không xóa (mã đã có người dùng không xóa được) |
+
+Số tiền sau giảm luôn ≥ 10.000₫ (giới hạn của cổng thanh toán).
+
+**Index:** `code` (unique), `{ createdBy, createdAt }`, `{ hotelId, isActive }`.
+
+---
+
+## 15. `notifications` — Thông báo trong trang
+
+| Trường | Kiểu | Bắt buộc | Mặc định / Ràng buộc | Ý nghĩa |
+|---|---|---|---|---|
+| `userId` | ObjectId → `users` | ✔ | | Người nhận |
+| `type` | String | ✔ | enum: `order_new`, `order_paid`, `order_canceled`, `order_expired`, `application_approved`, `application_rejected`, `application_submitted` | Loại sự kiện |
+| `title`, `message` | String | ✔ / | ≤ 150 / ≤ 500 ký tự | Nội dung hiển thị |
+| `link` | String | | | Trang mở ra khi bấm thông báo |
+| `readAt` | Date | | | Thời điểm đã đọc (không có = chưa đọc) |
+| `createdAt`, `updatedAt` | Date | | tự động | |
+
+**Sự kiện tạo thông báo:** thanh toán thành công (chủ KS / nhà xe: đơn mới; khách: đặt thành công), khách tự hủy đơn (chủ KS / nhà xe), cron hủy đơn quá hạn (khách), Admin duyệt / từ chối khách sạn, đơn đối tác, hồ sơ nhà xe (người gửi), hồ sơ mới chờ duyệt (mọi Admin).
+
+**Index:** `{ userId, createdAt }`, TTL 90 ngày trên `createdAt` (tự xóa thông báo cũ).
 
 ---
 

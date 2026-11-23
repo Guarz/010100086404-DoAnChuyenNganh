@@ -5,7 +5,9 @@ const jwt = require('jsonwebtoken');
 
 process.env.JWT_SECRET = 'test-jwt-secret';
 process.env.VNP_HASH_SECRET = 'test-vnpay-secret';
-process.env.GEMINI_API_KEY = ''; // Không gọi AI thật khi test -> kiểm tra luôn nhánh fallback
+// Không gọi AI thật khi test: Ollama trỏ tới cổng không có gì -> kiểm tra luôn nhánh fallback
+// (test nào cần Ollama thì tự dựng server giả lập và đặt OLLAMA_URL riêng)
+process.env.OLLAMA_URL = process.env.OLLAMA_URL_TEST || 'http://127.0.0.1:9';
 
 const TEST_MONGO_URI = process.env.TEST_MONGO_URI || 'mongodb://127.0.0.1:27017/hotelrag_test';
 

@@ -864,6 +864,128 @@
 
 ---
 
+## [18/11/2026] Cập nhật báo cáo, phân chia công việc, báo cáo tiến độ theo tiến độ 15/11
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi** (thư mục `D:/School/baocao/DACN/`):
+- `maudoan_sua.docx` (sửa trực tiếp, bản trước lưu `maudoan_sua (ban 14-11).docx`): đã deploy lên Render; đoạn quy đổi giờ VNPay sang GMT+7 (lỗi phát hiện trên Render); tìm người dùng theo tên đăng nhập; kiểm thử 94/94 (thêm `vnpay-time.test.js`, test một email nhiều tài khoản); số liệu Atlas đếm ngày 18/11 (36 tài khoản, 119 đơn phòng, 127 giao dịch, 15 đơn xe) và ghi chú dữ liệu mẫu đã làm sạch; hạn chế / hướng phát triển: API key Brevo chưa có quyền gửi email giao dịch, Render gói miễn phí; phụ lục B thêm múi giờ máy chủ. Mục lục cập nhật bằng Word, 71 trang.
+- `Nhóm 13 - PhanChiaCongViec (cap nhat 18-11-2026).xlsx` (từ bản 14/11): deploy Render 100%, tài khoản (một email nhiều tài khoản, Brevo), kiểm thử 94/94, làm sạch dữ liệu, thêm dòng "Rà soát trang Quản trị".
+- `BAO CAO TIEN DO - Nhom 13 (18-11-2026).docx`: cập nhật đến 18/11; tổng quan; thêm dòng deploy (100%), tài khoản và dữ liệu mẫu, rà soát trang Quản trị, cập nhật tài liệu; việc tiếp theo tuần 11; bảng ghi nhận AI thêm 2 dòng (ô mức độ / hiểu biết để nhóm tự điền).
+
+**Kiểm chứng:** số liệu đếm trực tiếp trên Atlas (chỉ đọc); xuất PDF cả 3 file và soát các trang thay đổi.
+
+**Việc còn lại:** nhóm điền các ô tô vàng trong báo cáo tiến độ; tạo API key Brevo mới; slide chưa có phần xe đưa đón.
+
+**Tiến độ:** hoàn thành.
+
+---
+
+## [23/11/2026] Embedding bằng Ollama (bỏ Gemini), yêu thích, mã giảm giá, MoMo, thông báo, thống kê và xuất báo cáo
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**1. Embedding bằng `bge-m3` qua Ollama, bỏ hẳn Gemini**
+- `services/llmService.js`: chỉ còn Ollama; thêm `embedText()` gọi `/api/embed` (mặc định `OLLAMA_EMBED_MODEL=bge-m3`, 1024 chiều). `aiService.js` (vector khách sạn), `aiController.js` (vector câu hỏi), `ragBenchmark.js` (cache theo tên model), seed (`EMBED_DIMS`), chấm Groundedness (`LLM_JUDGE_MODEL`) đều dùng Ollama. Gỡ thư viện `@google/generative-ai`.
+- Colab: notebook tải thêm `bge-m3`, proxy cho phép `/api/embed` (`colab/auth_proxy.py`, `colab/ollama_dolphin_colab.ipynb`).
+- `render.yaml`, `.env.example`: bỏ `GEMINI_API_KEY`, thêm `OLLAMA_EMBED_MODEL`.
+
+**2. Danh sách yêu thích:** `users.wishlist`; API `/api/users/me/wishlist`; nút trái tim trên thẻ khách sạn (trang chủ, trang Khách sạn), nút "Lưu yêu thích" ở trang chi tiết, tab "Yêu thích" trong trang Tài khoản (`?tab=wishlist`). Trạng thái dùng chung mọi trang (`hooks/useWishlist.js`).
+
+**3. Mã giảm giá:** collection `coupons` (theo % hoặc số tiền, giảm tối đa, đơn tối thiểu, hạn dùng, tổng lượt, lượt / khách, phạm vi phòng / xe / cả hai). Admin tạo mã toàn sàn (tab "Mã giảm giá"), Partner tạo mã cho khách sạn của mình (trong Trung tâm đối tác). Khách áp mã ở trang thanh toán (có gợi ý mã đang dùng được); áp mã giữ 1 lượt, đơn hủy / hết hạn / bỏ mã thì trả lượt. Đơn lưu `subtotalAmount` + `coupon`.
+
+**4. Thanh toán MoMo (sandbox):** `/api/payments/momo/create_url`, `/momo/return`, `/momo/ipn`; chữ ký HMAC-SHA256; mặc định bộ khóa test công khai của MoMo. Trang thanh toán đơn phòng và đơn xe có thêm nút "Thanh toán qua MoMo"; trang kết quả `/payment/momo-return`. Đã gọi thử MoMo sandbox thật: tạo link thành công và mở được cổng thanh toán.
+- **Sửa lỗ hổng:** trước đây kết quả VNPay không kiểm tra số tiền; nay VNPay và MoMo đều chỉ xác nhận khi số tiền trả khớp tổng tiền hiện tại của đơn (khách không thể tạo link lúc có mã rồi bỏ mã mà vẫn trả giá thấp). `payments.transactionId` lưu mã giao dịch của cổng.
+
+**5. Thông báo trong trang:** collection `notifications` (tự xóa sau 90 ngày); chuông trên header (cập nhật mỗi 60 giây và khi quay lại tab, số chưa đọc, đánh dấu đã đọc). Sự kiện: đơn mới đã thanh toán (chủ KS / nhà xe + khách), khách hủy đơn, đơn tự hủy do quá hạn, Admin duyệt / từ chối khách sạn, đơn đối tác, hồ sơ nhà xe, hồ sơ mới chờ duyệt (gửi Admin).
+
+**6. Thống kê và xuất báo cáo:** `services/statsService.js` tính theo tháng (giờ VN): doanh thu (giao dịch thành công), số đơn, tỷ lệ lấp phòng = đêm-phòng đã bán / đêm-phòng có thể bán. Partner: biểu đồ + bảng lấp phòng theo khách sạn trong Trung tâm đối tác; Admin: tab "Thống kê & báo cáo" (doanh thu phòng + xe). Biểu đồ cột SVG tự vẽ (`components/charts/BarChart.jsx`): một trục, tooltip, "Xem dạng bảng", màu đã kiểm tra bằng công cụ kiểm tra bảng màu (độ tương phản, mù màu). Xuất Excel (`exceljs`, 3 sheet: doanh thu theo tháng, đơn phòng, đơn xe) và CSV (UTF-8 có BOM, chặn CSV injection) theo khoảng ngày. CORS cho phép đọc `Content-Disposition`.
+
+**Sửa thêm khi kiểm tra:** trang thanh toán cũ không hiện lỗi khi tạo link VNPay thất bại; tab "Lịch sử đặt chỗ" mở bằng `?tab=booking` không tải đơn; thanh tìm kiếm trang Khách sạn tràn ngang ở màn hẹp; tooltip biểu đồ xuống dòng.
+
+**Kiểm chứng:**
+- `npm test` 113/113 (thêm `wishlist`, `coupon`, `momo-notification`, `report`; mở rộng `llm-ollama` kiểm tra `/api/embed` + `bge-m3`; test VNPay xe gửi đúng số tiền).
+- Chạy giao diện trên bản sao dữ liệu Atlas ở DB local: lưu yêu thích → tab Yêu thích; áp mã `HE2026` (3.300.000₫ → 3.000.000₫); bấm MoMo mở cổng MoMo sandbox; kết quả MoMo (chữ ký hợp lệ) → "Thanh toán MoMo thành công", chuông khách có thông báo; Partner thấy thông báo đơn mới, biểu đồ, bảng lấp phòng; Admin xuất Excel / CSV khác domain đọc được tên file; tab Mã giảm giá hiện lượt đã dùng. Các trang mới không tràn ngang ở 375px. ESLint 0 lỗi, `vite build` thành công.
+
+**Việc còn lại:**
+- Tạo lại vector `bge-m3` cho 20 khách sạn trên Atlas: bật notebook Colab mới (đã tải `bge-m3`), cập nhật `OLLAMA_URL` / `OLLAMA_API_KEY` trong `.env`, chạy `npm run seed:mock -- --embeddings`. Trước khi chạy, vector cũ (Gemini 3072 chiều) không so được với vector câu hỏi mới nên chatbot chỉ xếp hạng theo từ khóa.
+- `docs/erd.mmd` / `docs/mermaid-bao-cao.md` chưa thêm `coupons`, `notifications` và số chiều vector mới (2 file đang có thay đổi chưa commit từ phiên khác).
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
+## [23/11/2026] Tạo lại vector bge-m3 cho khách sạn trên Atlas
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+**Thay đổi:** bật notebook Colab mới (có `bge-m3`, proxy cho `/api/embed`), chạy `node Hotel-RAG-BE/scripts/seedMockData.js --embeddings` trên Atlas: tạo lại vector cho 20/20 khách sạn đã duyệt (thay vector Gemini 3072 chiều bằng `bge-m3` 1024 chiều). Seed cũng mở bán thêm 369 ngày phòng và 81 ngày xe.
+
+**Kiểm chứng:** Atlas: 20 khách sạn đều có vector 1024 chiều. Thử truy hồi (chỉ đọc) với vector câu hỏi tạo bằng `bge-m3`: "khách sạn yên tĩnh có vườn ở Đà Nẵng" → Da Nang Quiet Garden Boutique (cosine 0,716); "resort nghỉ dưỡng bên hồ thông ở Đà Lạt" → Dalat Pine Lake Retreat / Dalat Edensee Lake Resort; "khách sạn trung tâm Hà Nội cho công tác có phòng gym" → Hanoi Business and Gym Hotel (cosine 0,700) và Mường Thanh Luxury Hà Nội.
+
+**Tiến độ:** hoàn thành.
+
+---
+
+## [24/11/2026] Chatbot hiểu câu hỏi về xe đưa đón và câu hỏi theo tỉnh
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+- `services/queryConstraintParser.js`: nhận **tỉnh** (63 tỉnh, địa danh như Vũng Tàu / Sa Pa / Hạ Long, tên sân bay như Nội Bài / Tân Sơn Nhất / Liên Khương; thành phố suy ra tỉnh, vd. Đà Lạt → Lâm Đồng) và **ý định đặt xe** (`isTransferQuery`, chiều `fromAirport` / `toAirport`). "Khách sạn có đưa đón sân bay" vẫn là tiện nghi khách sạn; câu hỏi chỉ về xe không tìm phòng; câu kết hợp tìm cả hai.
+- `constants/provinces.js`: thêm tên sân bay vào bảng địa danh, xuất `PROVINCE_KEYS`.
+- `services/ragRetrieval.js`: chỉ nêu tỉnh thì lọc khách sạn theo `address.province`.
+- `services/transferService.js`: chuyển `activeRoutes` + logic tìm xe thành `findTransferOptions()` dùng chung cho trang Xe đưa đón và chatbot (`transferController.searchTransfers` gọi lại, hành vi không đổi).
+- `controllers/aiController.js`: nhánh xe đưa đón — tỉnh + ngày + số khách → tối đa 4 tuyến còn đặt được, đúng chiều trước, trích dẫn `[X1]...`; ngân sách áp cho giá xe khi chỉ hỏi xe; chưa nêu tỉnh thì hỏi lại. Response có thêm `transfers`; `RagLog.retrievedTransferRouteIds`. System prompt / câu từ chối nhắc cả xe đưa đón.
+- `AIChatWidget.jsx`: thẻ xe (loại xe, tuyến, nhà xe, giá, số xe còn), bấm mở `/transfers?province=&date=&passengers=`; nhãn ràng buộc có tỉnh, "Xe đưa đón", chiều đón; nút "Xem trang Xe đưa đón" khi không có kết quả.
+- `docs/rag-pipeline.md`: thêm bước 4b và bảng ví dụ.
+
+**Kiểm chứng:** `npm test` 125/125 (thêm `tests/chatbot-transfer.test.js`: parser tỉnh / sân bay / chiều đón, chỉ trả xe đúng tỉnh, kiểm tra quỹ xe theo ngày + số xe cần, ngân sách, câu kết hợp, lọc khách sạn theo tỉnh, RagLog). Thử giao diện trên bản sao dữ liệu Atlas ở DB local: "Xe đón tôi từ sân bay Đà Lạt ngày 5/12 cho 3 người" → 4 xe Liên Khương → Đà Lạt, bấm thẻ mở trang Xe đưa đón đã điền Lâm Đồng / 05/12 / 3 khách; "Khách sạn ở Lâm Đồng" → chỉ khách sạn Đà Lạt; không tràn ngang ở 375px.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
+## [24/11/2026] Cập nhật README
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+- `README.md`:
+  - Mục RAG đổi thành "tìm khách sạn và xe đưa đón": thêm tỉnh, ý định đặt xe, bước tìm xe, trích dẫn `[Xn]`, ví dụ câu hỏi.
+  - Atlas Vector Search: 1024 chiều (`bge-m3`), ghi rõ chỉ dùng cho benchmark.
+  - Viết lại chức năng theo vai trò: bỏ các ghi chú cũ "thanh toán demo", "dashboard còn dữ liệu mẫu"; thêm yêu thích, mã giảm giá, VNPay / MoMo, thông báo, thống kê, xuất báo cáo.
+  - Nhà xe theo tỉnh; mô tả response `/api/ai/search`; frontend đọc `VITE_API_URL`.
+  - Bảng 16 file test (125 test); thêm `docs/deploy-render.md` vào bảng tài liệu; ghi chú VNPay / MoMo sandbox.
+- `Hotel-RAG-FE/README.md`: thay README mẫu của Vite bằng hướng dẫn riêng của frontend (chạy, biến môi trường, danh sách trang, thành phần chính).
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
+## [24/11/2026] Cập nhật ERD, hình use case và từ điển dữ liệu
+
+**Người thực hiện:** Quanh (cùng Claude Code)
+
+- `docs/erd.mmd` (đối chiếu 15 model trong `Hotel-RAG-BE/models`):
+  - Thêm bảng `COUPON` (mã giảm giá) và `NOTIFICATION` (thông báo, tự xóa sau 90 ngày).
+  - Trường mới: `USER.wishlist`; `BOOKING` / `TRANSFER_BOOKING` có `subtotalAmount` và `coupon_*`; `PAYMENT.transactionId`; `RAG_LOG.retrievedTransferRouteIds`.
+  - `HOTEL.embedding` đổi thành vector 1024 chiều (`bge-m3`, Ollama).
+  - Quan hệ mới: người dùng yêu thích khách sạn, tạo mã, nhận thông báo; mã áp vào đơn phòng / đơn xe; mã riêng của khách sạn; RagLog gợi ý tuyến xe.
+- `docs/erd.png`: xuất lại bằng mermaid-cli (5952 × 5658 px), đủ 17 bảng.
+- `docs/mermaid-bao-cao.md`:
+  - Hình 3.5 (ERD) đồng bộ với `erd.mmd`.
+  - Use case Khách hàng thêm: hỏi AI về xe đưa đón, lưu yêu thích, thanh toán VNPay / MoMo, áp mã giảm giá, xem thông báo.
+  - Use case Đối tác thêm: tạo mã giảm giá, xem doanh thu / tỷ lệ lấp phòng, xem thông báo.
+  - Use case Quản trị viên thêm: mã giảm giá toàn sàn, thống kê, xuất Excel / CSV, xem thông báo.
+- `docs/data-dictionary.md`, mục `raglogs`: thêm `retrievedTransferRouteIds`; `constraints` có `province`, `isTransferQuery`, `transferDirection`; `pipelineStats.transferResults`.
+
+**Kiểm chứng:** xuất lại `erd.png` và cả 6 khối Mermaid trong `mermaid-bao-cao.md` bằng mermaid-cli, không lỗi cú pháp.
+
+**Việc còn lại:** các hình ERD và use case trong báo cáo Word cần dán lại ảnh mới.
+
+**Tiến độ:** hoàn thành, chưa commit.
+
+---
+
 <!--
 MẪU CHO MỤC MỚI — sao chép và dán ngay PHÍA TRÊN khối này, KHÔNG sửa các mục cũ:
 

@@ -1,5 +1,6 @@
 // File: controllers/partnerController.js
 const Hotel = require("../models/Hotel");
+const notifications = require('../services/notificationService');
 const User = require("../models/User");
 const mongoose = require("mongoose");
 const RoomType = require("../models/RoomType");
@@ -56,6 +57,7 @@ exports.applyForPartner = async (req, res) => {
     }
 
     user.partnerApplicationStatus = "Pending";
+    notifications.notifyAdminsNewSubmission(`Yêu cầu làm đối tác của ${user.fullName}`, "/admin?tab=partners");
     await user.save();
 
     return res.status(201).json({
@@ -112,6 +114,9 @@ exports.reviewPartnerApplication = async (req, res) => {
       decision === "approve" ? "Approved" : "Rejected";
     if (decision === "approve") user.role = "Partner";
     await user.save();
+    await notifications.notifyReviewResult(user._id, {
+      approved: decision === "approve", subject: "Yêu cầu trở thành đối tác", link: decision === "approve" ? "/partner" : "/partner-apply",
+    });
 
     return res.status(200).json({
       success: true,
@@ -190,6 +195,7 @@ exports.createHotel = async (req, res) => {
 
     // 3. Lưu vào Database
     await newHotel.save();
+    await notifications.notifyAdminsNewSubmission(`Khách sạn mới "${newHotel.hotelName}"`, "/admin");
 
     res.status(201).json({
       success: true,

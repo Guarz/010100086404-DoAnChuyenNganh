@@ -1,5 +1,7 @@
 # Chạy Dolphin 3.0 (Llama 3.1 8B) local thay cho Gemini
 
+> **Cập nhật 23/11/2026:** hệ thống đã bỏ hẳn Gemini. Vector câu hỏi / khách sạn tạo bằng **`bge-m3`** (1024 chiều) qua Ollama: cần thêm `ollama pull bge-m3`, rồi chạy `npm run seed:mock -- --embeddings` một lần để tạo lại vector cho các khách sạn. Các phần nhắc tới Gemini bên dưới là bối cảnh cũ.
+
 Trợ lý RAG có thể sinh câu trả lời bằng một model chạy ngay trên máy qua **Ollama**, thay cho Gemini (bản miễn phí bị giới hạn quota). Bạn chỉ cần đổi biến môi trường, không phải sửa code.
 
 ## 1. Phần nào chạy local, phần nào vẫn dùng Gemini
@@ -7,8 +9,8 @@ Trợ lý RAG có thể sinh câu trả lời bằng một model chạy ngay tr�
 | Bước trong pipeline | Model | Ghi chú |
 |---|---|---|
 | Tách ràng buộc, lọc, kiểm tra quỹ phòng | Không dùng AI | Luật và truy vấn MongoDB |
-| Vector câu hỏi (xếp hạng ngữ nghĩa) | Gemini `gemini-embedding-001` | Phải trùng model đã tạo vector khách sạn (3072 chiều). Nếu hết quota, hệ thống tự xếp hạng bằng từ khóa |
-| **Sinh câu trả lời cho khách** | **`LLM_PROVIDER`: `gemini` hoặc `ollama`** | Phần tốn quota nhất, chuyển sang chạy local được |
+| Vector câu hỏi (xếp hạng ngữ nghĩa) | `bge-m3` qua Ollama (`OLLAMA_EMBED_MODEL`) | Phải trùng model đã tạo vector khách sạn (1024 chiều). Ollama chưa chạy thì hệ thống tự xếp hạng bằng từ khóa |
+| **Sinh câu trả lời cho khách** | **`dolphin3` qua Ollama (`OLLAMA_MODEL`)** | `LLM_PROVIDER=off` để tắt, dùng câu dựng sẵn |
 | Chấm Groundedness (Admin) | `LLM_JUDGE_PROVIDER` (mặc định giống `LLM_PROVIDER`) | Nên dùng model **khác** model trả lời |
 
 Nếu model local lỗi (chưa bật Ollama, chưa tải model, quá thời gian chờ), API vẫn trả lời bằng dữ liệu đã lọc (`answerSource: "template"`) chứ không báo lỗi 500.
@@ -63,14 +65,13 @@ OLLAMA_MODEL=dolphin3
 OLLAMA_URL=http://127.0.0.1:11434
 OLLAMA_TIMEOUT_MS=120000
 
-# Không bắt buộc: dùng Gemini làm giám khảo Groundedness để tránh model tự chấm câu trả lời của mình
-LLM_JUDGE_PROVIDER=gemini
+OLLAMA_EMBED_MODEL=bge-m3
 
-# Vẫn giữ để tạo vector câu hỏi / khách sạn
-GEMINI_API_KEY=...
+# Không bắt buộc: dùng model KHÁC làm giám khảo Groundedness để tránh model tự chấm câu trả lời của mình
+LLM_JUDGE_MODEL=qwen2.5:7b
 ```
 
-Khởi động lại API (`npm run dev`). Mỗi câu trả lời và mỗi bản ghi trong `raglogs` có trường `llmModel`, ví dụ `"ollama:dolphin3"`, để biết model nào đã trả lời. Muốn quay lại Gemini: đặt `LLM_PROVIDER=gemini`.
+Khởi động lại API (`npm run dev`). Mỗi câu trả lời và mỗi bản ghi trong `raglogs` có trường `llmModel`, ví dụ `"ollama:dolphin3"`, để biết model nào đã trả lời. Muốn tắt phần viết câu trả lời: đặt `LLM_PROVIDER=off`.
 
 ## 4. Lưu ý quan trọng về Dolphin
 
@@ -85,7 +86,7 @@ Khởi động lại API (`npm run dev`). Mỗi câu trả lời và mỗi bản
 
    Sau đó xem **Citation correctness** và **Groundedness** ở Admin → RAG Analytics. Nếu chất lượng chưa đạt, đổi sang model khác chỉ bằng `OLLAMA_MODEL` (ví dụ một model đa ngôn ngữ cỡ 7B) rồi so sánh lại trên cùng Golden Query Set.
 3. **Giấy phép:** Dolphin 3.0 dựa trên Llama 3.1, dùng theo Llama 3.1 Community License (được phép cho mục đích học tập và nghiên cứu).
-4. **Báo cáo đồ án:** ghi rõ model sinh câu trả lời là "Dolphin 3.0 Llama 3.1 8B chạy local qua Ollama", và embedding vẫn là Gemini.
+4. **Báo cáo đồ án:** ghi rõ model sinh câu trả lời là "Dolphin 3.0 Llama 3.1 8B chạy local qua Ollama", và embedding là `bge-m3` chạy qua Ollama.
 
 ## 5. Xử lý sự cố
 
@@ -95,4 +96,4 @@ Khởi động lại API (`npm run dev`). Mỗi câu trả lời và mỗi bản
 | Log ghi `Ollama 404 ... model not found` | Chưa `ollama pull dolphin3`, hoặc `OLLAMA_MODEL` sai tên tag |
 | Log ghi `The operation was aborted due to timeout` | Máy trả lời chậm hơn 120 giây: tăng `OLLAMA_TIMEOUT_MS` hoặc dùng bản lượng tử hóa nhẹ hơn |
 | Câu trả lời bằng tiếng Anh | Model không theo kịp yêu cầu tiếng Việt: thử model khác hoặc giảm số lựa chọn đưa vào ngữ cảnh |
-| Chấm Groundedness báo "không đúng định dạng" | Model giám khảo không trả JSON: đặt `LLM_JUDGE_PROVIDER=gemini` |
+| Chấm Groundedness báo "không đúng định dạng" | Model giám khảo không trả JSON: đặt `LLM_JUDGE_MODEL` sang model khác (vd. `qwen2.5:7b`) |

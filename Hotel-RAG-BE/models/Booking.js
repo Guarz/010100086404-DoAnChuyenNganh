@@ -9,6 +9,13 @@ const bookingSchema = new mongoose.Schema({
   checkOutDate: { type: Date, required: true },
   expiresAt: { type: Date },
   totalAmount: { type: Number, required: true },
+  // Mã giảm giá: subtotalAmount = giá trước giảm; totalAmount = số tiền phải trả sau giảm
+  subtotalAmount: { type: Number },
+  coupon: {
+    couponId: { type: mongoose.Schema.Types.ObjectId, ref: 'Coupon' },
+    code: String,
+    discountAmount: Number
+  },
   specialRequests: { type: String },
   // Khóa chống trùng do client gửi (header Idempotency-Key): bấm 2 lần / mạng gửi lại
   // cùng một yêu cầu thì chỉ tạo đúng 1 đơn và chỉ trừ quỹ phòng 1 lần.

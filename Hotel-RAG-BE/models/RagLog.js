@@ -12,9 +12,11 @@ const ragLogSchema = new mongoose.Schema({
   // Hạng phòng được truy xuất, THEO THỨ TỰ XẾP HẠNG - cùng cấp với golden_dataset.json
   // (dùng tính HitRate / Recall@K / Precision@K / nDCG@K)
   retrievedContextIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'RoomType' }],
+  // Tuyến xe đưa đón chatbot đã gợi ý (câu hỏi về xe, trích dẫn [X1], [X2]...)
+  retrievedTransferRouteIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'TransferRoute' }],
 
   llmResponse: { type: String, required: true },
-  // llm: Gemini sinh câu trả lời | template: LLM lỗi, dùng câu trả lời dựng từ dữ liệu | guardrail: từ chối câu hỏi ngoài phạm vi
+  // llm: model Ollama sinh câu trả lời | template: LLM lỗi, dùng câu trả lời dựng từ dữ liệu | guardrail: từ chối câu hỏi ngoài phạm vi
   answerSource: { type: String, enum: ['llm', 'template', 'guardrail'] },
   // Model đã sinh câu trả lời, dạng "<provider>:<model>", vd. "ollama:dolphin3", "gemini:gemini-3.8-flash"
   llmModel: { type: String },

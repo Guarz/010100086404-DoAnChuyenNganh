@@ -1,5 +1,7 @@
 // File: src/pages/Checkout.jsx
 import { useEffect, useState } from "react";
+import CouponBox from "../components/CouponBox";
+import PaymentButtons from "../components/PaymentButtons";
 import { useNavigate, useParams } from "react-router-dom";
 import API from "../services/api";
 
@@ -12,7 +14,6 @@ export default function Checkout() {
   const [error, setError] = useState("");
 
   // Thêm state loading khi bấm thanh toán VNPay
-  const [payLoading, setPayLoading] = useState(false);
 
   useEffect(() => {
     const loadBooking = async () => {
@@ -64,22 +65,8 @@ export default function Checkout() {
     return () => window.clearInterval(timer);
   }, [booking, id]);
 
-  // HÀM MỚI: Xử lý gọi API sang VNPay
-  const handleVNPayPayment = async () => {
-    setPayLoading(true);
-    try {
-      const response = await API.post("/payments/vnpay/create_url", {
-        bookingId: booking._id,
-      });
-      if (response.data.success) {
-        window.location.href = response.data.paymentUrl; // Đẩy sang cổng VNPay
-      }
-    } catch (error) {
-      error.response?.data?.message ||
-        "Không thể khởi tạo thanh toán VNPay lúc này.";
-      setPayLoading(false);
-    }
-  };
+  // Áp / bỏ mã giảm giá: cập nhật tổng tiền đang hiển thị
+  const applyCouponResult = (summary) => setBooking((b) => ({ ...b, ...summary }));
 
   if (loading) {
     return (
@@ -180,33 +167,43 @@ export default function Checkout() {
               </p>
             </div>
 
-            <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-5">
+              <CouponBox
+                kind="hotel"
+                orderId={booking._id}
+                hotelId={booking.hotelId?._id || booking.hotelId}
+                order={booking}
+                onChange={applyCouponResult}
+                disabled={remainingSeconds === 0}
+              />
+            </div>
+
+            <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-sm text-stone-500 font-semibold mb-1">
-                  Tổng thanh toán
-                </p>
+                <p className="mb-1 text-sm font-semibold text-stone-500">Tổng thanh toán</p>
+                {booking.coupon?.code && (
+                  <p className="text-sm text-stone-400 line-through">
+                    {(booking.subtotalAmount ?? booking.totalAmount).toLocaleString("vi-VN")}₫
+                  </p>
+                )}
                 <p className="text-3xl font-extrabold text-[#b7812d]">
                   {booking.totalAmount.toLocaleString("vi-VN")}₫
                 </p>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => navigate("/hotels")}
                   className="rounded-2xl bg-stone-100 px-6 py-4 font-bold text-stone-600 transition hover:bg-stone-200"
                 >
-                  Hủy
+                  Để sau
                 </button>
-                {/* NÚT THANH TOÁN VNPAY ĐƯỢC GẮN VÀO ĐÂY */}
-                <button
-                  type="button"
-                  onClick={handleVNPayPayment}
-                  disabled={payLoading || remainingSeconds === 0}
-                  className="rounded-2xl bg-[#005BAA] px-8 py-4 font-bold text-white transition hover:bg-[#004785] disabled:opacity-60 flex items-center gap-2"
-                >
-                  {payLoading ? "Đang kết nối..." : "Thanh toán qua VNPay"}
-                </button>
+                <PaymentButtons
+                  body={{ bookingId: booking._id }}
+                  disabled={remainingSeconds === 0}
+                  onError={setError}
+                />
               </div>
             </div>
           </div>

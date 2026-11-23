@@ -12,4 +12,9 @@ router.post('/', authenticateUser, createBooking);
 router.get('/:id', authenticateUser, getBookingById);
 router.put('/:id/cancel', authenticateUser, cancelBooking);
 
+// Mã giảm giá cho đơn đang chờ thanh toán
+const { applyCoupon, removeCoupon } = require('../controllers/couponController');
+router.put('/:id/coupon', authenticateUser, applyCoupon('hotel'));
+router.delete('/:id/coupon', authenticateUser, removeCoupon('hotel'));
+
 module.exports = router;

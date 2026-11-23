@@ -23,6 +23,7 @@ const TransferRoute = require('../models/TransferRoute');
 const VehicleInventory = require('../models/VehicleInventory');
 const TransferBooking = require('../models/TransferBooking');
 const { normalizeProvince } = require('../constants/provinces');
+const { EMBED_DIMS } = require('../services/llmService'); // số chiều vector của model Ollama (bge-m3: 1024)
 
 const DEMO_PASSWORD = 'Nestly@2026'; // Mật khẩu chung cho các tài khoản mock (*@nestly.test)
 const INVENTORY_DAYS = 60;
@@ -338,14 +339,14 @@ async function fixHotelsAndRooms() {
   }
 
   // Tên khách sạn nằm trong nội dung tạo Vector AI -> tạo lại vector cho khách sạn vừa đổi tên
-  // (cần GEMINI_API_KEY; lỗi thì giữ vector cũ, tìm kiếm vẫn chạy bình thường)
-  if (renamedHotelIds.length && process.env.GEMINI_API_KEY) {
+  // (cần Ollama đang chạy - OLLAMA_URL; lỗi thì giữ vector cũ, tìm kiếm vẫn chạy bình thường)
+  if (renamedHotelIds.length) {
     const { generateHotelEmbedding } = require('../services/aiService');
     for (const id of renamedHotelIds) {
       const hotel = await Hotel.findById(id).select('-embedding').lean();
       if (hotel.status !== 'Approved') continue;
       const embedding = await generateHotelEmbedding(hotel);
-      if (embedding.length === 3072) {
+      if (embedding.length === EMBED_DIMS) {
         await Hotel.collection.updateOne({ _id: id }, { $set: { embedding } });
         count('hotels: tạo lại Vector AI sau khi đổi tên');
       }
@@ -526,11 +527,11 @@ async function regenerateEmbeddings() {
   const hotels = await Hotel.aggregate([
     { $match: { status: 'Approved' } },
     { $project: { hotelName: 1, description: 1, amenities: 1, address: 1, dims: { $size: { $ifNull: ['$embedding', []] } } } },
-    { $match: { dims: { $ne: 3072 } } }
+    { $match: { dims: { $ne: EMBED_DIMS } } } // thiếu vector hoặc vector của model cũ (Gemini 3072 chiều)
   ]);
   for (const hotel of hotels) {
     const embedding = await generateHotelEmbedding(hotel);
-    if (embedding.length === 3072) {
+    if (embedding.length === EMBED_DIMS) {
       await Hotel.collection.updateOne({ _id: hotel._id }, { $set: { embedding } });
       count('hotels: tạo lại Vector AI');
     } else {

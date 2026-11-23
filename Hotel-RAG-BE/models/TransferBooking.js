@@ -20,6 +20,13 @@ const transferBookingSchema = new mongoose.Schema({
 
   unitPrice: { type: Number, required: true }, // Giá mỗi xe chốt lúc đặt
   totalAmount: { type: Number, required: true },
+  // Mã giảm giá: subtotalAmount = giá trước giảm; totalAmount = số tiền phải trả sau giảm
+  subtotalAmount: { type: Number },
+  coupon: {
+    couponId: { type: mongoose.Schema.Types.ObjectId, ref: 'Coupon' },
+    code: String,
+    discountAmount: Number
+  },
   status: {
     type: String,
     enum: ['Pending', 'Confirmed', 'Canceled', 'Completed'],

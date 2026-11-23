@@ -1,5 +1,6 @@
 // File: controllers/adminController.js
 const Hotel = require('../models/Hotel');
+const notifications = require('../services/notificationService');
 const User = require('../models/User');
 const RagLog = require('../models/RagLog');
 const RoomType = require('../models/RoomType');
@@ -162,6 +163,9 @@ exports.updateHotelStatus = async (req, res) => {
     hotel.status = status;
     hotel.reviewedAt = new Date();
     await hotel.save();
+    await notifications.notifyReviewResult(hotel.partnerId, {
+      approved: status === 'Approved', subject: `Khách sạn "${hotel.hotelName}"`, reason: hotel.rejectionReason, link: '/partner'
+    });
 
     const data = hotel.toObject();
     delete data.embedding;
@@ -200,8 +204,9 @@ exports.evaluateGroundedness = async (req, res) => {
     }
 
     // Giám khảo dùng LLM_JUDGE_PROVIDER (mặc định = LLM_PROVIDER). Nên dùng model KHÁC model sinh
-    // câu trả lời (vd. trả lời bằng ollama:dolphin3, chấm bằng gemini) để tránh model tự chấm mình.
+    // câu trả lời (LLM_JUDGE_MODEL, vd. trả lời bằng dolphin3, chấm bằng qwen2.5) để tránh model tự chấm mình.
     const judgeProvider = process.env.LLM_JUDGE_PROVIDER || undefined;
+    const judgeModel = process.env.LLM_JUDGE_MODEL || undefined;
     let evaluatedCount = 0;
 
     for (const log of unevaluatedLogs) {
@@ -235,7 +240,7 @@ exports.evaluateGroundedness = async (req, res) => {
 
       try {
         // 3. Gọi LLM chấm điểm
-        const result = await generateText({ prompt, temperature: 0, maxTokens: 50 }, { provider: judgeProvider });
+        const result = await generateText({ prompt, temperature: 0, maxTokens: 50 }, { provider: judgeProvider, model: judgeModel });
 
         // Model local hay viết thêm chữ quanh JSON -> chỉ lấy đúng giá trị 0/1
         const match = result.text.match(/"groundedness"\s*:\s*([01])/);

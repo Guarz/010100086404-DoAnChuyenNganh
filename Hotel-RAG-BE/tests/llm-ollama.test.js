@@ -7,18 +7,26 @@ const http = require('node:http');
 const { startTestServer, createUser, createHotelWithRoom } = require('./helpers');
 const RagLog = require('../models/RagLog');
 
-let api, stop, mock, lastRequest, mockMode = 'ok';
+let api, stop, mock, lastRequest, embedRequest, mockMode = 'ok';
 
 before(async () => {
   mock = http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
-      lastRequest = { url: req.url, body: JSON.parse(body), auth: req.headers.authorization };
+      const parsed = { url: req.url, body: JSON.parse(body), auth: req.headers.authorization };
       if (mockMode === 'error') {
         res.writeHead(500).end('model not found');
         return;
       }
+      // Tạo vector (embedding) bằng bge-m3: trả vector 1024 chiều
+      if (req.url === '/api/embed') {
+        embedRequest = parsed;
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ model: parsed.body.model, embeddings: [Array.from({ length: 1024 }, (_, i) => Math.sin(i))] }));
+        return;
+      }
+      lastRequest = parsed;
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
         model: lastRequest.body.model,
         message: { role: 'assistant', content: 'Bạn có thể chọn Phòng Biển Xanh [1] với giá tốt.' },
@@ -62,6 +70,11 @@ describe('LLM_PROVIDER=ollama (Dolphin 3.0 chạy local)', () => {
     assert.match(user.content, /\[1\] Phòng Biển Xanh/);
     assert.equal(lastRequest.auth, undefined); // không cấu hình OLLAMA_API_KEY -> không gửi header
 
+    // Vector câu hỏi tạo bằng bge-m3 qua Ollama (không còn gọi Gemini)
+    assert.equal(embedRequest.url, '/api/embed');
+    assert.equal(embedRequest.body.model, 'bge-m3');
+    assert.equal(embedRequest.body.input, 'Phòng ở Đà Nẵng có hồ bơi');
+
     await new Promise((r) => setTimeout(r, 300));
     const log = await RagLog.findOne({ userQuery: 'Phòng ở Đà Nẵng có hồ bơi' });
     assert.equal(log.llmModel, 'ollama:dolphin3');
@@ -82,6 +95,7 @@ describe('LLM_PROVIDER=ollama (Dolphin 3.0 chạy local)', () => {
       const res = await api('POST', '/ai/search', { body: { query: 'Phòng ở Đà Nẵng có hồ bơi nhé' } });
       assert.equal(res.body.answerSource, 'llm');
       assert.equal(lastRequest.auth, 'Bearer secret-proxy-key');
+      assert.equal(embedRequest.auth, 'Bearer secret-proxy-key', 'gọi /api/embed cũng gửi khóa');
     } finally {
       delete process.env.OLLAMA_API_KEY;
     }

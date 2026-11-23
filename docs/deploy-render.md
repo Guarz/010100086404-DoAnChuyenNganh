@@ -8,9 +8,9 @@ flowchart LR
     FE -- "gọi API (VITE_API_URL)" --> BE["nestly-api<br/>Web Service (Express, server.js)"]
     BE --> DB[(MongoDB Atlas)]
     BE -- "viết câu trả lời<br/>(OLLAMA_URL + OLLAMA_API_KEY)" --> O["Ollama trên Google Colab<br/>(tunnel Cloudflare)"]
-    BE -- "tạo vector câu hỏi" --> G[Gemini Embedding API]
-    BE <-- "chuyển hướng thanh toán" --> V[VNPay Sandbox]
-    V -- "VNP_RETURN_URL" --> FE
+    BE <-- "chuyển hướng thanh toán" --> V[VNPay / MoMo Sandbox]
+    V -- "VNP_RETURN_URL / momo-return" --> FE
+    V -- "IPN MoMo" --> BE
 ```
 
 | Dịch vụ | Loại trên Render | Thư mục | Lệnh build | Lệnh chạy / thư mục xuất bản |
@@ -29,7 +29,7 @@ File `render.yaml` ở thư mục gốc đã khai báo sẵn cả 2 dịch vụ 
 3. **MongoDB Atlas cho phép Render kết nối:** Atlas → *Network Access* → *Add IP Address* → `0.0.0.0/0` (Allow access from anywhere). Gói Render miễn phí không có IP cố định nên không thể chỉ cho một IP. Bảo mật dựa vào user/mật khẩu trong `MONGO_URI`.
 4. **Chuẩn bị giá trị biến môi trường** (xem bảng ở mục 3). Lấy từ file `.env` trên máy, **không** commit file `.env`.
 
-> **Trợ lý AI dùng Ollama trên Google Colab:** Render **không chạy** Ollama, chỉ chạy backend. Backend trên Render gọi sang Ollama đang chạy trong Colab qua URL tunnel Cloudflare, giống hệt khi chạy trên máy. Vì vậy `render.yaml` đặt sẵn `LLM_PROVIDER=ollama`; bạn chỉ cần nhập `OLLAMA_URL` và `OLLAMA_API_KEY` lấy từ ô 6 của notebook (`docs/colab-ollama.md`). `GEMINI_API_KEY` vẫn cần vì bước tạo vector câu hỏi của RAG dùng Gemini.
+> **Trợ lý AI dùng Ollama trên Google Colab:** Render **không chạy** Ollama, chỉ chạy backend. Backend trên Render gọi sang Ollama đang chạy trong Colab qua URL tunnel Cloudflare, giống hệt khi chạy trên máy. Vì vậy `render.yaml` đặt sẵn `LLM_PROVIDER=ollama`; bạn chỉ cần nhập `OLLAMA_URL` và `OLLAMA_API_KEY` lấy từ ô 6 của notebook (`docs/colab-ollama.md`). Ollama trên Colab làm cả 2 việc: `dolphin3` viết câu trả lời, `bge-m3` tạo vector tìm kiếm (không dùng Gemini).
 >
 > **Mỗi phiên Colab mới có URL và khóa mới**: mở notebook, chạy lại các ô, rồi vào Render → `nestly-api` → *Environment* → sửa `OLLAMA_URL`, `OLLAMA_API_KEY` → **Save and deploy** (khoảng 1 phút, không cần build lại frontend). Khi Colab đã tắt, trợ lý AI **không báo lỗi** mà vẫn trả danh sách khách sạn phù hợp kèm câu trả lời dựng sẵn; log backend ghi `LLM lỗi, dùng câu trả lời dựng sẵn`.
 
@@ -39,7 +39,7 @@ File `render.yaml` ở thư mục gốc đã khai báo sẵn cả 2 dịch vụ 
 
 1. Render Dashboard → **New** → **Blueprint** → chọn repo → chọn nhánh.
 2. Render đọc `render.yaml` và hiện 2 dịch vụ `nestly-api`, `nestly-web`. Nhập các biến được hỏi (những biến `sync: false`):
-   - `MONGO_URI`, `GEMINI_API_KEY`, `VNP_TMN_CODE`, `VNP_HASH_SECRET`: chép từ `.env`.
+   - `MONGO_URI`, `VNP_TMN_CODE`, `VNP_HASH_SECRET`: chép từ `.env`. MoMo sandbox dùng khóa test công khai, không cần nhập.
    - `VNP_RETURN_URL`, `CORS_ORIGIN`, `VITE_API_URL`: lúc này chưa biết địa chỉ thật → điền tạm theo tên dịch vụ (Render đặt địa chỉ dạng `https://<tên>.onrender.com`; nếu tên đã có người dùng sẽ thêm hậu tố, sửa lại ở bước 4).
      - `VITE_API_URL` = `https://nestly-api.onrender.com/api`
      - `VNP_RETURN_URL` = `https://nestly-web.onrender.com/payment/vnpay-return`
@@ -74,8 +74,8 @@ File `render.yaml` ở thư mục gốc đã khai báo sẵn cả 2 dịch vụ 
 |---|---|---|
 | `MONGO_URI` | ✔ | Chuỗi kết nối Atlas (`mongodb+srv://.../Hotel-RAG`) |
 | `JWT_SECRET` | ✔ | Chuỗi bí mật dài, ngẫu nhiên |
-| `GEMINI_API_KEY` | ✔ | Khóa Gemini API (tạo vector câu hỏi và vector khách sạn khi Admin duyệt) |
-| `LLM_PROVIDER` | | `ollama` (Colab) hoặc `gemini` |
+| `LLM_PROVIDER` | | `ollama` (mặc định) hoặc `off` (tắt phần viết câu trả lời) |
+| `OLLAMA_EMBED_MODEL` | | `bge-m3` (model tạo vector; phải trùng model đã tạo vector khách sạn) |
 | `OLLAMA_URL` | ✔ nếu `ollama` | URL tunnel Colab `https://….trycloudflare.com` (không có `/` ở cuối) |
 | `OLLAMA_API_KEY` | ✔ nếu `ollama` | Khóa của phiên Colab hiện tại |
 | `OLLAMA_MODEL` | | `dolphin3` |
@@ -153,4 +153,5 @@ Render bản miễn phí **chặn các cổng SMTP 25, 465, 587**, nên không g
 | Trợ lý AI chỉ trả câu dựng sẵn, log ghi `LLM lỗi ... fetch failed` | Phiên Colab đã tắt hoặc `OLLAMA_URL` là URL phiên cũ → chạy lại notebook, cập nhật `OLLAMA_URL` |
 | Log ghi `Ollama 401` | `OLLAMA_API_KEY` không khớp phiên Colab hiện tại |
 | Log ghi `The operation was aborted due to timeout` | Model trên Colab trả lời quá lâu (lần đầu nạp model) → hỏi lại, hoặc tăng `OLLAMA_TIMEOUT_MS` |
-| Log ghi `Không tạo được embedding câu hỏi` | `GEMINI_API_KEY` sai / hết quota; AI vẫn chạy nhưng chỉ xếp hạng theo từ khóa |
+| Log ghi `Không tạo được vector câu hỏi (Ollama)` | Colab tắt / chưa tải `bge-m3` / proxy cũ chưa cho `/api/embed` (chạy lại notebook mới); AI vẫn chạy nhưng chỉ xếp hạng theo từ khóa |
+| MoMo: thanh toán xong đơn vẫn "chờ thanh toán" | Kết quả chỉ về qua trình duyệt (`/payment/momo-return`) hoặc IPN `/api/payments/momo/ipn`; kiểm tra `APP_URL` đúng domain frontend |

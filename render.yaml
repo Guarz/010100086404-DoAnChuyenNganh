@@ -18,13 +18,12 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      # Gemini: vẫn cần cho bước tạo vector (embedding) của RAG
-      - key: GEMINI_API_KEY
-        sync: false
-      # Model viết câu trả lời: Ollama chạy trên Google Colab, gọi qua URL tunnel Cloudflare
-      # (xem docs/colab-ollama.md). Đổi thành "gemini" nếu không dùng Colab.
+      # AI chỉ dùng Ollama chạy trên Google Colab (gọi qua URL tunnel Cloudflare, xem docs/colab-ollama.md):
+      # dolphin3 viết câu trả lời, bge-m3 tạo vector cho tìm kiếm. Không dùng Gemini.
       - key: LLM_PROVIDER
         value: ollama
+      - key: OLLAMA_EMBED_MODEL
+        value: bge-m3
       - key: OLLAMA_URL
         sync: false # https://<chuoi>.trycloudflare.com (đổi mỗi phiên Colab)
       - key: OLLAMA_API_KEY

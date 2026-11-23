@@ -2,6 +2,7 @@
 // Phía NHÀ XE: hồ sơ nhà xe, loại xe, tuyến đưa đón, số xe trống theo ngày, đơn đặt xe.
 // Phía ADMIN: duyệt / từ chối hồ sơ nhà xe.
 const mongoose = require('mongoose');
+const notifications = require('../services/notificationService');
 const User = require('../models/User');
 const TransportCompany = require('../models/TransportCompany');
 const VehicleType = require('../models/VehicleType');
@@ -86,6 +87,7 @@ exports.applyCompany = async (req, res) => {
         { $set: { ...data, status: 'Pending', rejectionReason: null, reviewedAt: null } }, { returnDocument: 'after' })
       : await TransportCompany.create({ ...data, ownerId: req.user.id });
 
+    await notifications.notifyAdminsNewSubmission(`Hồ sơ nhà xe "${company.companyName}"`, '/admin?tab=transport');
     return res.status(201).json({ success: true, message: 'Đã gửi hồ sơ nhà xe. Vui lòng chờ quản trị viên duyệt.', data: company });
   } catch (error) {
     console.error('Lỗi đăng ký nhà xe:', error);
@@ -398,6 +400,10 @@ exports.adminUpdateCompanyStatus = async (req, res) => {
     if (status === 'Approved' && owner.role === 'Customer') owner.role = 'Transport';
     if (status === 'Rejected' && owner.role === 'Transport') owner.role = 'Customer';
     await owner.save();
+    await notifications.notifyReviewResult(company.ownerId, {
+      approved: status === 'Approved', subject: `Hồ sơ nhà xe "${company.companyName}"`, reason: company.rejectionReason,
+      link: status === 'Approved' ? '/transport' : '/transport-apply'
+    });
 
     await company.populate('ownerId', 'fullName email phone');
     return res.status(200).json({

@@ -3,6 +3,7 @@
 //  1. Mỗi 1 phút: hủy đơn Pending quá 5 phút chưa thanh toán và hoàn availableRooms vào RoomInventory.
 //  2. Mỗi ngày 00:05: chuyển đơn Confirmed đã qua ngày Check-out sang Completed (để khách có thể Review).
 const cron = require('node-cron');
+const { notifyOrderExpired } = require('../services/notificationService');
 const Booking = require('../models/Booking');
 const { cancelPendingBooking, expiredPendingFilter } = require('../services/inventoryService');
 const TransferBooking = require('../models/TransferBooking');
@@ -24,7 +25,10 @@ const releaseExpiredBookings = async () => {
         // cancelPendingBooking tự kiểm tra lại trạng thái Pending, nên nếu khách vừa thanh toán
         // xong (VNPay đã chuyển sang Confirmed) thì đơn sẽ được bỏ qua.
         const canceled = await cancelPendingBooking({ _id });
-        if (canceled) canceledCount++;
+        if (canceled) {
+          canceledCount++;
+          await notifyOrderExpired('hotel', canceled);
+        }
       } catch (error) {
         console.error(`[Cron] Lỗi hủy đơn ${_id}:`, error.message);
       }
@@ -39,7 +43,11 @@ const releaseExpiredBookings = async () => {
     let canceledTransfers = 0;
     for (const { _id } of expiredTransfers) {
       try {
-        if (await cancelPendingTransfer({ _id })) canceledTransfers++;
+        const canceledTransfer = await cancelPendingTransfer({ _id });
+        if (canceledTransfer) {
+          canceledTransfers++;
+          await notifyOrderExpired('transfer', canceledTransfer);
+        }
       } catch (error) {
         console.error(`[Cron] Lỗi hủy đơn xe ${_id}:`, error.message);
       }

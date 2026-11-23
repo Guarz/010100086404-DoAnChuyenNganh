@@ -31,6 +31,11 @@ router.get('/hotels/pending', authenticateUser, authorizeRoles('Admin'), getPend
 router.get('/hotels', authenticateUser, authorizeRoles('Admin'), getHotels);
 router.put('/hotels/:id/status', authenticateUser, authorizeRoles('Admin'), updateHotelStatus);
 router.put('/hotels/:id/approve', authenticateUser, authorizeRoles('Admin'), approveHotel);
+
+// Thống kê toàn sàn + xuất báo cáo Excel / CSV
+const { adminStats, exportReport } = require('../controllers/reportController');
+router.get('/stats', authenticateUser, authorizeRoles('Admin'), adminStats);
+router.get('/reports/export', authenticateUser, authorizeRoles('Admin'), exportReport);
 router.put('/hotels/:id/reject', authenticateUser, authorizeRoles('Admin'), rejectHotel);
 
 // --- DUYỆT NHÀ XE ---

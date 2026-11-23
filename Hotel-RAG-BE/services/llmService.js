@@ -1,32 +1,36 @@
 // File: services/llmService.js
-// Một điểm duy nhất để sinh văn bản bằng LLM. Chọn nhà cung cấp qua biến môi trường:
-//   LLM_PROVIDER=gemini  (mặc định) -> Gemini API, cần GEMINI_API_KEY, có giới hạn quota
-//   LLM_PROVIDER=ollama              -> model chạy LOCAL qua Ollama (vd. Dolphin 3.0 Llama 3.1 8B)
-//     OLLAMA_URL   (mặc định http://127.0.0.1:11434)
-//     OLLAMA_MODEL (mặc định dolphin3)
-//     OLLAMA_TIMEOUT_MS (mặc định 120000) - model 8B trên GPU 4GB cần vài chục giây
-//     OLLAMA_API_KEY (không bắt buộc) - gửi header "Authorization: Bearer <key>" khi Ollama chạy trên
-//       server từ xa (vd. AWS EC2) phía sau reverse proxy có xác thực. Ollama gốc không có xác thực.
-// Lỗi / quá thời gian sẽ throw để nơi gọi tự fallback (aiController dùng câu trả lời dựng sẵn).
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+// Một điểm duy nhất gọi AI. Hệ thống chỉ dùng model chạy bằng Ollama (không còn gọi Gemini):
+//   - Sinh câu trả lời:  POST {OLLAMA_URL}/api/chat  với OLLAMA_MODEL (mặc định dolphin3)
+//   - Tạo vector (embedding): POST {OLLAMA_URL}/api/embed với OLLAMA_EMBED_MODEL (mặc định bge-m3, 1024 chiều,
+//     hiểu tiếng Việt tốt). Vector khách sạn và vector câu hỏi phải cùng một model mới so sánh được.
+// Biến môi trường:
+//   OLLAMA_URL (mặc định http://127.0.0.1:11434) - trên Render là URL tunnel của Colab
+//   OLLAMA_API_KEY (không bắt buộc) - header "Authorization: Bearer <key>" cho proxy có xác thực (Colab)
+//   OLLAMA_MODEL, OLLAMA_EMBED_MODEL, OLLAMA_TIMEOUT_MS (mặc định 120000), OLLAMA_EMBED_TIMEOUT_MS (mặc định 30000)
+//   LLM_PROVIDER=off -> tắt sinh câu trả lời (chatbot trả câu dựng sẵn)
+// Lỗi / quá thời gian sẽ throw để nơi gọi tự fallback (chatbot dùng câu dựng sẵn / xếp hạng theo từ khóa).
 
-const GEMINI_CHAT_MODEL = 'gemini-3.8-flash';
+const EMBED_DIMS = 1024; // số chiều vector của bge-m3
 
 const config = (overrides = {}) => ({
-  provider: (overrides.provider || process.env.LLM_PROVIDER || 'gemini').toLowerCase(),
+  provider: (overrides.provider || process.env.LLM_PROVIDER || 'ollama').toLowerCase(),
   ollamaUrl: (process.env.OLLAMA_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''),
-  ollamaModel: process.env.OLLAMA_MODEL || 'dolphin3',
+  ollamaModel: overrides.model || process.env.OLLAMA_MODEL || 'dolphin3',
+  embedModel: process.env.OLLAMA_EMBED_MODEL || 'bge-m3',
   ollamaTimeoutMs: Number(process.env.OLLAMA_TIMEOUT_MS || 120000),
+  embedTimeoutMs: Number(process.env.OLLAMA_EMBED_TIMEOUT_MS || 30000),
   ollamaApiKey: process.env.OLLAMA_API_KEY || ''
+});
+
+const headers = (cfg) => ({
+  'Content-Type': 'application/json',
+  ...(cfg.ollamaApiKey ? { Authorization: `Bearer ${cfg.ollamaApiKey}` } : {})
 });
 
 async function generateWithOllama({ system, prompt, temperature, maxTokens }, cfg) {
   const res = await fetch(`${cfg.ollamaUrl}/api/chat`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(cfg.ollamaApiKey ? { Authorization: `Bearer ${cfg.ollamaApiKey}` } : {})
-    },
+    headers: headers(cfg),
     signal: AbortSignal.timeout(cfg.ollamaTimeoutMs),
     body: JSON.stringify({
       model: cfg.ollamaModel,
@@ -48,31 +52,37 @@ async function generateWithOllama({ system, prompt, temperature, maxTokens }, cf
   return { text, provider: 'ollama', model: cfg.ollamaModel };
 }
 
-async function generateWithGemini({ system, prompt, temperature, maxTokens }) {
-  if (!process.env.GEMINI_API_KEY) throw new Error('Chưa cấu hình GEMINI_API_KEY');
-  const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY).getGenerativeModel({
-    model: GEMINI_CHAT_MODEL,
-    ...(system ? { systemInstruction: system } : {}),
-    generationConfig: { temperature, maxOutputTokens: maxTokens }
-  });
-  const result = await model.generateContent(prompt);
-  return { text: result.response.text().trim(), provider: 'gemini', model: GEMINI_CHAT_MODEL };
-}
-
-// generateText({ system, prompt, temperature, maxTokens }, { provider })
-// -> { text, provider, model }
+// generateText({ system, prompt, temperature, maxTokens }, { provider, model }) -> { text, provider, model }
 async function generateText({ system = '', prompt, temperature = 0.3, maxTokens = 600 }, overrides = {}) {
   const cfg = config(overrides);
-  const args = { system, prompt, temperature, maxTokens };
-  if (cfg.provider === 'ollama') return generateWithOllama(args, cfg);
-  if (cfg.provider === 'gemini') return generateWithGemini(args);
-  throw new Error(`LLM_PROVIDER không hợp lệ: ${cfg.provider} (chỉ hỗ trợ gemini | ollama)`);
+  if (cfg.provider === 'off') throw new Error('Đã tắt sinh câu trả lời (LLM_PROVIDER=off)');
+  if (cfg.provider !== 'ollama') {
+    throw new Error(`LLM_PROVIDER không hợp lệ: ${cfg.provider} (chỉ hỗ trợ ollama | off)`);
+  }
+  return generateWithOllama({ system, prompt, temperature, maxTokens }, cfg);
 }
 
-// Có LLM để gọi không (dùng để quyết định có thử sinh câu trả lời hay dùng template ngay)
-const isLlmConfigured = () => {
-  const { provider } = config();
-  return provider === 'ollama' || (provider === 'gemini' && Boolean(process.env.GEMINI_API_KEY));
-};
+// embedText(text) -> mảng số (vector). Dùng cho cả vector khách sạn và vector câu hỏi.
+async function embedText(text) {
+  const cfg = config();
+  const res = await fetch(`${cfg.ollamaUrl}/api/embed`, {
+    method: 'POST',
+    headers: headers(cfg),
+    signal: AbortSignal.timeout(cfg.embedTimeoutMs),
+    body: JSON.stringify({ model: cfg.embedModel, input: String(text), keep_alive: '30m' })
+  });
+  if (!res.ok) {
+    throw new Error(`Ollama embed ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const vector = data.embeddings?.[0];
+  if (!Array.isArray(vector) || !vector.length) throw new Error('Ollama trả về vector rỗng');
+  return vector;
+}
 
-module.exports = { generateText, isLlmConfigured };
+// Có LLM để gọi không (dùng để quyết định có thử sinh câu trả lời hay dùng câu dựng sẵn ngay)
+const isLlmConfigured = () => config().provider === 'ollama';
+
+const embedModelName = () => config().embedModel;
+
+module.exports = { generateText, embedText, isLlmConfigured, embedModelName, EMBED_DIMS };

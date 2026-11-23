@@ -1,5 +1,6 @@
 // File: controllers/bookingController.js
 const Booking = require('../models/Booking');
+const notifications = require('../services/notificationService');
 const Payment = require('../models/Payment');
 const RoomInventory = require('../models/RoomInventory');
 const RoomType = require('../models/RoomType');
@@ -288,6 +289,7 @@ exports.cancelBooking = async (req, res) => {
     if (!canceled) {
       return res.status(409).json({ success: false, message: "Đơn đã được xử lý trước đó" });
     }
+    await notifications.notifyOrderCanceledByCustomer('hotel', canceled);
 
     res.status(200).json({
       success: true,

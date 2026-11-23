@@ -2,13 +2,15 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import TransferHistory from "../components/TransferHistory";
+import WishlistPanel from "../components/WishlistPanel";
 import Icon from "../components/Icon";
 import StarRating from "../components/StarRating";
 import API from "../services/api";
 
 export default function ProfilePage({ onLogout }) {
   const [searchParams] = useSearchParams();
-  const [active, setActive] = useState(() => (searchParams.get("tab") === "transfers" ? "transfers" : "personal"));
+  const [active, setActive] = useState(() =>
+    ["transfers", "wishlist", "booking"].includes(searchParams.get("tab")) ? searchParams.get("tab") : "personal");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
@@ -45,6 +47,14 @@ export default function ProfilePage({ onLogout }) {
         setBookingsLoading(false);
       });
   };
+
+  // Mở thẳng tab lịch sử (vd. /profile?tab=booking sau khi thanh toán) -> tải đơn ngay
+  useEffect(() => {
+    // Tải dữ liệu lần đầu (cùng kiểu với các trang khác); chỉ chạy khi mở trang
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (active === "booking") fetchBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openReviewForm = (bookingId) => {
     setReviewingId(bookingId);
@@ -153,6 +163,7 @@ export default function ProfilePage({ onLogout }) {
     { id: "security", label: "Mật khẩu & bảo mật", icon: "shield" },
     { id: "booking", label: "Lịch sử đặt chỗ", icon: "calendar" },
     { id: "transfers", label: "Xe đưa đón", icon: "car" },
+    { id: "wishlist", label: "Yêu thích", icon: "heart" },
   ];
 
   const handleLogoutClick = () => {
@@ -440,6 +451,7 @@ export default function ProfilePage({ onLogout }) {
             )}
 
             {active === "transfers" && <TransferHistory />}
+            {active === "wishlist" && <WishlistPanel />}
           </section>
         </div>
       </div>
